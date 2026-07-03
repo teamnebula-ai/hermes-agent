@@ -3837,6 +3837,17 @@ class GatewayRunner:
             logger.debug("Skipping home-channel shutdown notifications for in-chat restart")
             return
 
+        if not active and not self._restart_requested:
+            # External stop/restart (systemd, cron) with nothing running: the
+            # interruption warning would be false and the ping is noise.
+            # Gateway-initiated restarts keep the idle broadcast (upstream
+            # test_restart_notifies_home_channel_even_without_active_sessions).
+            # Local patch, matches upstream PR NousResearch/hermes-agent#57164.
+            logger.info(
+                "Skipping home-channel shutdown notification: no active sessions to interrupt"
+            )
+            return
+
         # Snapshot adapters up front: adapter.send() can hit a fatal error
         # path that pops the adapter from self.adapters (see _handle_fatal
         # elsewhere), which would otherwise trigger
