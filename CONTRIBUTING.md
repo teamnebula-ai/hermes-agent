@@ -772,6 +772,16 @@ If you monkeypatch `sys.platform` for cross-platform tests, also patch
 re-reads the real OS independently, so half-patched tests still route
 through the wrong branch on a Windows runner.
 
+Patching `sys.platform` does **not** reach `packaging`'s dependency-marker
+evaluation. As of `packaging` 26.3, `markers.default_environment()` is computed
+once per process and cached — its own docstring notes that patching
+`sys`/`os`/`platform` after the first call has no effect, and that callers
+needing different values must pass an explicit environment to
+`Marker.evaluate(environment)`. Code that evaluates markers should therefore
+build and pass that dict itself rather than relying on the cached default;
+`_verify_core_dependencies_installed` in `hermes_cli/main.py` does this, which
+is what keeps its Windows-exclusion test meaningful.
+
 ---
 
 ## Security Considerations
