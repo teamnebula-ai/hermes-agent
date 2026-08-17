@@ -65,6 +65,34 @@ jobs:
           source .venv/bin/activate
           uv pip install -e ".[all,dev]"
 
+      # TEMPORARY DIAGNOSTIC — remove before merge.
+      #
+      # CI reports tests/tools/test_terminal_task_cwd.py failing with the PRE-fix
+      # source in the traceback (asserts at lines 43/75/185), on a merge ref that
+      # provably contains the post-fix source (asserts at 49/88/202). The same
+      # commit passes 10/10 locally on 3.11 and 3.12 under an editable install.
+      #
+      # This pins which of the two it is in a single run:
+      #   - hash differs from the ref  -> the checkout is not what we think
+      #   - hash matches but __file__ points elsewhere -> import resolution
+      # Nothing here interpolates event data into the shell.
+      - name: Diagnose test file identity
+        run: |
+          source .venv/bin/activate
+          echo "--- on-disk file ---"
+          sha256sum tests/tools/test_terminal_task_cwd.py
+          wc -l tests/tools/test_terminal_task_cwd.py
+          echo "container_id occurrences: $(grep -c container_id tests/tools/test_terminal_task_cwd.py || true)"
+          echo "line 43: $(sed -n '43p' tests/tools/test_terminal_task_cwd.py)"
+          echo "line 49: $(sed -n '49p' tests/tools/test_terminal_task_cwd.py)"
+          echo "--- what python imports ---"
+          python -c "import tests.tools.test_terminal_task_cwd as m; print('__file__ =', m.__file__)"
+          python -c "import tests, tests.tools; print('tests =', tests.__file__); print('tests.tools =', tests.tools.__file__)"
+          echo "--- any other copies on disk ---"
+          find / -name 'test_terminal_task_cwd.py' -not -path '*/proc/*' 2>/dev/null | head -20
+          echo "--- sys.path ---"
+          python -c "import sys; [print(p) for p in sys.path]"
+
       - name: Run tests (slice ${{ matrix.slice }}/6)
         # Per-file isolation via scripts/run_tests_parallel.py: discovers
         # every test_*.py file under tests/ (excluding integration/ + e2e/),
