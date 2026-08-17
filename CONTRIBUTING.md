@@ -129,6 +129,22 @@ scripts/run_tests.sh
 pytest tests/ -v
 ```
 
+**The suite will not open a browser.** `tests/conftest.py` sets `BROWSER=true` at
+import time. Without it, running `tests/hermes_cli` puts real OAuth consent pages on
+screen — `hermes_cli/auth.py` calls `webbrowser.open()` on six paths and only one test
+file stubs it, so on macOS `webbrowser.get()` resolves to `MacOSXOSAScript` and launches
+the default browser for real.
+
+It is an environment variable rather than a fixture on purpose: `scripts/run_tests_parallel.py`
+spawns `python -m pytest <file>` per test file, and a monkeypatch on the in-process
+`webbrowser` module cannot reach a child interpreter — the environment is the only thing
+inherited across that boundary. `tests/test_no_real_browser.py` pins both properties, and
+asserts them by checking what `webbrowser.get()` *resolves to* rather than by calling
+`.open()`, so a regression fails an assertion instead of opening a window.
+
+If you need a real browser from a test run, unset it for that command
+(`env -u BROWSER pytest ...`) rather than removing the guard.
+
 ---
 
 ## Project Structure
