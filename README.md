@@ -29,6 +29,31 @@ Use any model you want — [Nous Portal](https://portal.nousresearch.com), [Open
 
 ---
 
+## Fork notes (Team Nebula)
+
+This repository is Team Nebula's operated fork of
+[NousResearch/hermes-agent](https://github.com/NousResearch/hermes-agent). Upstream remains the
+source of truth for everything not listed below; read the upstream docs first.
+
+**Where it runs.** The fork backs the production gateways on `neb-brain-hostinger` as
+user-level systemd units (`systemctl --user`), one gateway process per profile, each with its
+own `HERMES_HOME` under `~/.hermes/profiles/<name>/` and its own `.env`. A profile that sets
+`API_SERVER_ENABLED=true` also exposes the HTTP API server on its `API_SERVER_PORT`, so ports
+must not collide across profiles running at the same time.
+
+**Divergences from upstream.**
+
+| Area | Change | Why |
+| --- | --- | --- |
+| External memory sync | `run_agent.py` flattens multimodal `content` part lists to text before handing them to memory providers, recording attachments as an `[N image(s)]` marker | Providers feed these values into text APIs. Mem0 v3 rejects a list at `POST /v3/memories/add/` with `Not a valid string.`, which silently dropped every multimodal turn from long-term memory instead of storing it. Affected any profile whose worker submits media, including image-evidence agents. |
+
+| MCP description scanner | `tools/mcp_tool.py` adds word boundaries to the code-execution rule in `_MCP_INJECTION_PATTERNS`, with first test coverage for the scanner in `tests/tools/test_mcp_description_scan.py` | The rule had no boundary, so it matched the tail of ordinary words: any tool description containing "retrieval (" was logged as a code execution reference. The scan is WARNING-level and never blocks a tool, so the cost was log noise, but a security warning that fires on the word "retrieval" trains operators to ignore it. Candidate to send upstream, since it is not specific to this fork. |
+
+Operational context for these deployments lives in
+[`teamnebula-ai/hermes-infra`](https://github.com/teamnebula-ai/hermes-infra).
+
+---
+
 ## Quick Install
 
 ### Linux, macOS, WSL2, Termux
