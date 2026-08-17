@@ -198,6 +198,14 @@ uv pip install -e ".[all,dev]"
 scripts/run_tests.sh
 ```
 
+Tests must never run Hermes' own updater. `hermes update` rewrites the checkout
+it starts from, and on a detached HEAD — which is what CI builds a pull request
+on — it switches the working tree to `main`. Because the gateway spawns the
+updater detached, the damage lands a few seconds later in whichever test file
+pytest compiles next, so an unrelated file fails on source it never contained.
+The guard in `tests/conftest.py` blocks the spawn and names the fix in its
+error; see the testing section of the Contributing Guide for the full write-up.
+
 ---
 
 ## Community

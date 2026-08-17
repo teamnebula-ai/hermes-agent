@@ -782,6 +782,27 @@ build and pass that dict itself rather than relying on the cached default;
 `_verify_core_dependencies_installed` in `hermes_cli/main.py` does this, which
 is what keeps its Windows-exclusion test meaningful.
 
+### Never let a test reach the real updater
+
+`hermes update` rewrites the checkout it is started from. On a detached HEAD it
+takes its "switching to main for update" branch and runs `git checkout main`,
+falling back to `git checkout -B main origin/main` when `main` is not a local
+branch. `actions/checkout` builds every pull request on a detached HEAD with no
+local branches, so both conditions hold on CI.
+
+`_handle_update_command` spawns that updater **detached**, so a test only has to
+get past its platform gate to arm it. The working tree then flips to `main`
+seconds later, mid-run. Every test file pytest compiles after that point sees
+`main`'s source, and only files the branch actually changed differ between the
+two — so it surfaces as one unrelated file failing, with traceback line numbers
+that do not exist in the checked-out source. Eight-way parallelism decides which
+file gets hit, which makes it look like a flake and hides the cause.
+
+The `_live_system_guard` fixture in `tests/conftest.py` now blocks the spawn and
+names the remedy in its error. If you are testing that path, stub the spawn
+(patching `gateway.run._resolve_hermes_bin` to return `None` short-circuits just
+after the gate) rather than bypassing the guard.
+
 ---
 
 ## Security Considerations
