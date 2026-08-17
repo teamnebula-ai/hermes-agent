@@ -92,6 +92,12 @@ jobs:
           find / -name 'test_terminal_task_cwd.py' -not -path '*/proc/*' 2>/dev/null | head -20
           echo "--- sys.path ---"
           python -c "import sys; [print(p) for p in sys.path]"
+          echo "--- run the file directly, the simple way ---"
+          python -m pytest tests/tools/test_terminal_task_cwd.py -q -o addopts="" -p no:cacheprovider || echo "DIRECT RUN FAILED (exit $?)"
+          echo "--- run it the way run_tests_parallel does ---"
+          python -m pytest tests/tools/test_terminal_task_cwd.py -m 'not integration' --timeout=30 --timeout-method=signal -q || echo "RUNNER-STYLE FAILED (exit $?)"
+          echo "--- any __pycache__ for it? ---"
+          find . -path '*tools/__pycache__*test_terminal_task_cwd*' -exec ls -la {} + 2>/dev/null || echo "  none"
 
       - name: Run tests (slice ${{ matrix.slice }}/6)
         # Per-file isolation via scripts/run_tests_parallel.py: discovers
