@@ -772,6 +772,18 @@ If you monkeypatch `sys.platform` for cross-platform tests, also patch
 re-reads the real OS independently, so half-patched tests still route
 through the wrong branch on a Windows runner.
 
+**Do not compare paths literally on macOS.** `/tmp` is a symlink to `/private/tmp`,
+and `$TMPDIR` is `/var/folders/<hash>/T/` which resolves under `/private/var`. Code
+that canonicalises a path before acting on it — `write_file` and `patch` both do,
+because the sensitive-path check runs on the resolved form — will hand the resolved
+path to whatever you mocked. Assert against `os.path.realpath("/tmp/x")` rather than
+`"/tmp/x"`, or the test only passes on Linux.
+
+The same asymmetry hides product bugs, not just test bugs: `/private/var/` is on the
+sensitive-path deny list, so before the temp carve-out in `_temp_dir_prefixes()`,
+`write_file` refused every temp file on macOS while CI stayed green on Linux. If you
+add a path prefix to a deny list, check what it means on macOS after `realpath`.
+
 ---
 
 ## Security Considerations
