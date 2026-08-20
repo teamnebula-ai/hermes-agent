@@ -27,10 +27,16 @@ def test_foreground_command_uses_registered_task_cwd_for_existing_environment(mo
             return {"output": "ok", "returncode": 0}
 
     task_id = "acp-session-1"
-    monkeypatch.setattr(terminal_tool, "_active_environments", {task_id: FakeEnv()})
+    # A CWD-only override is deliberately NOT an isolation signal, so this session
+    # collapses onto the shared "default" container (see _resolve_container_task_id
+    # and 6459b3d9). Both the cached env and its overrides are keyed by that resolved
+    # id, not by the raw ACP session id.
+    container_id = "default"
+    monkeypatch.setattr(terminal_tool, "_active_environments", {container_id: FakeEnv()})
     monkeypatch.setattr(terminal_tool, "_last_activity", {})
-    monkeypatch.setattr(terminal_tool, "_task_env_overrides", {task_id: {"cwd": "/workspace/acp"}})
+    monkeypatch.setattr(terminal_tool, "_task_env_overrides", {container_id: {"cwd": "/workspace/acp"}})
     monkeypatch.setattr(terminal_tool, "_get_env_config", lambda: _minimal_terminal_config())
+    monkeypatch.setattr(terminal_tool, "_start_cleanup_thread", lambda: None)
     monkeypatch.setattr(
         terminal_tool,
         "_check_all_guards",
@@ -54,10 +60,16 @@ def test_explicit_workdir_still_wins_over_registered_task_cwd(monkeypatch):
             return {"output": "ok", "returncode": 0}
 
     task_id = "acp-session-1"
-    monkeypatch.setattr(terminal_tool, "_active_environments", {task_id: FakeEnv()})
+    # A CWD-only override is deliberately NOT an isolation signal, so this session
+    # collapses onto the shared "default" container (see _resolve_container_task_id
+    # and 6459b3d9). Both the cached env and its overrides are keyed by that resolved
+    # id, not by the raw ACP session id.
+    container_id = "default"
+    monkeypatch.setattr(terminal_tool, "_active_environments", {container_id: FakeEnv()})
     monkeypatch.setattr(terminal_tool, "_last_activity", {})
-    monkeypatch.setattr(terminal_tool, "_task_env_overrides", {task_id: {"cwd": "/workspace/acp"}})
+    monkeypatch.setattr(terminal_tool, "_task_env_overrides", {container_id: {"cwd": "/workspace/acp"}})
     monkeypatch.setattr(terminal_tool, "_get_env_config", lambda: _minimal_terminal_config())
+    monkeypatch.setattr(terminal_tool, "_start_cleanup_thread", lambda: None)
     monkeypatch.setattr(
         terminal_tool,
         "_check_all_guards",
@@ -176,7 +188,12 @@ def test_registering_cwd_override_updates_live_env_cwd(monkeypatch):
 
     task_id = "acp-session-update"
     fake_env = FakeEnv()
-    monkeypatch.setattr(terminal_tool, "_active_environments", {task_id: fake_env})
+    # A CWD-only override is deliberately NOT an isolation signal, so this session
+    # collapses onto the shared "default" container (see _resolve_container_task_id
+    # and 6459b3d9). Both the cached env and its overrides are keyed by that resolved
+    # id, not by the raw ACP session id.
+    container_id = "default"
+    monkeypatch.setattr(terminal_tool, "_active_environments", {container_id: fake_env})
     monkeypatch.setattr(terminal_tool, "_task_env_overrides", {})
 
     terminal_tool.register_task_env_overrides(task_id, {"cwd": "/workspace/new"})
