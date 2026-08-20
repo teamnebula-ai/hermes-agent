@@ -238,6 +238,38 @@ _SENSITIVE_PATH_PREFIXES = (
 )
 _SENSITIVE_EXACT_PATHS = {"/var/run/docker.sock", "/run/docker.sock"}
 
+
+def _temp_dir_prefixes() -> tuple[str, ...]:
+    """Scratch directories that sit UNDER a sensitive prefix but are not system state.
+
+    ``/private/var/`` is in the deny list to protect macOS system state — but on
+    macOS the per-user temp directory lives there too. ``$TMPDIR`` is
+    ``/var/folders/<hash>/T/``, and ``/var`` is a symlink to ``/private/var``, so
+    every single temp file resolves under the deny prefix. Without this carve-out
+    ``write_file`` refuses to write ANY temp file on macOS, which is ordinary
+    scratch space that the user already owns.
+
+    Resolved through ``realpath`` because the check upstream compares against
+    resolved paths, and read fresh each call so a changed ``$TMPDIR`` is honoured
+    rather than baked in at import.
+
+    Deliberately narrow: only the temp root itself is exempt. The rest of
+    ``/private/var/`` (``/private/var/db``, ``/private/var/root``, ...) stays
+    refused.
+    """
+    import tempfile
+
+    prefixes: list[str] = []
+    for candidate in (tempfile.gettempdir(), "/var/folders", "/tmp"):
+        try:
+            resolved = os.path.realpath(candidate)
+        except (OSError, ValueError):
+            continue
+        if resolved and resolved != "/":
+            prefixes.append(resolved.rstrip("/") + "/")
+    return tuple(dict.fromkeys(prefixes))
+
+
 _hermes_config_resolved: str | None = None
 _hermes_config_resolved_loaded = False
 
@@ -270,9 +302,16 @@ def _check_sensitive_path(filepath: str, task_id: str = "default") -> str | None
         f"Refusing to write to sensitive system path: {filepath}\n"
         "Use the terminal tool with sudo if you need to modify system files."
     )
-    for prefix in _SENSITIVE_PATH_PREFIXES:
-        if resolved.startswith(prefix) or normalized.startswith(prefix):
-            return _err
+    # Temp directories first: on macOS they live under /private/var/, which is
+    # itself a denied prefix. Checked before the deny list so the carve-out wins.
+    temp_prefixes = _temp_dir_prefixes()
+    in_temp = any(
+        resolved.startswith(p) or normalized.startswith(p) for p in temp_prefixes
+    )
+    if not in_temp:
+        for prefix in _SENSITIVE_PATH_PREFIXES:
+            if resolved.startswith(prefix) or normalized.startswith(prefix):
+                return _err
     if resolved in _SENSITIVE_EXACT_PATHS or normalized in _SENSITIVE_EXACT_PATHS:
         return _err
     # Prevent agents from modifying the Hermes config file directly.
