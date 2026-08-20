@@ -746,7 +746,55 @@ def _live_system_guard(request, monkeypatch):
                     return True
         return False
 
+    def _is_self_update(cmd) -> bool:
+        """True for a command that runs Hermes' own updater.
+
+        ``hermes update`` rewrites the checkout it is run from. When the
+        checkout is a detached HEAD (which is exactly what
+        ``actions/checkout`` produces for a pull_request build) the update
+        path switches the working tree to ``main``:
+
+            git checkout main
+            git checkout -B main origin/main      # when main isn't local yet
+
+        A test that reaches ``_handle_update_command`` past its platform
+        gate spawns that updater *detached*, so the damage lands seconds
+        later in whichever test file pytest happens to compile next. The
+        symptom is a wholly unrelated file failing on source it never
+        contained. Blocking the spawn is the only reliable place to stop
+        it — once the child is running it is outside this process and
+        beyond the reach of any in-process patch.
+        """
+        cmd_str = _cmd_to_string(cmd)
+        low = cmd_str.lower()
+        if "update" not in low:
+            return False
+        try:
+            tokens = _shlex.split(cmd_str)
+        except ValueError:
+            tokens = cmd_str.split()
+        for i, tok in enumerate(tokens):
+            head = tok.rsplit("/", 1)[-1].rsplit("\\", 1)[-1].lower()
+            # `hermes update`, and the `python -m hermes_cli.main update`
+            # / `bash -c "... hermes update --gateway"` spellings the
+            # gateway actually uses.
+            is_hermes = head.startswith("hermes") or head == "hermes_cli.main"
+            if is_hermes and "update" in tokens[i + 1:]:
+                return True
+        return "hermes update" in low or "hermes_cli.main update" in low
+
     def _check_subprocess_cmd(name, cmd):
+        if _is_self_update(cmd):
+            raise RuntimeError(
+                f"tests/conftest.py live-system guard: blocked "
+                f"subprocess.{name}({cmd!r}) — this spawns Hermes' own "
+                "updater, which runs `git checkout main` against the "
+                "checkout it is started from and silently rewrites the "
+                "working tree other tests are still being compiled from. "
+                "Stub the spawn (e.g. patch gateway.run._resolve_hermes_bin "
+                "to return None) or mark with "
+                "@pytest.mark.live_system_guard_bypass."
+            )
         if _is_blocked_systemctl(cmd):
             raise RuntimeError(
                 f"tests/conftest.py live-system guard: blocked "
