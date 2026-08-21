@@ -169,7 +169,7 @@ from agent.codex_responses_adapter import (
     _derive_responses_function_call_id as _codex_derive_responses_function_call_id,
     _deterministic_call_id as _codex_deterministic_call_id,
     _split_responses_tool_id as _codex_split_responses_tool_id,
-    _summarize_user_message_for_log,  # noqa: F401  # re-exported for tests
+    _summarize_user_message_for_log,  # used below; also re-exported for tests
 )
 from agent.tool_guardrails import (
     ToolGuardrailDecision,
@@ -2968,17 +2968,30 @@ class AIAgent:
             return
         if not (self._memory_manager and final_response and original_user_message):
             return
+        # Multimodal turns carry content as a list of typed parts rather than
+        # a string.  Providers feed these two values straight into text APIs,
+        # and Mem0 v3 rejects a list at POST /v3/memories/add/ with "Not a
+        # valid string." — so every such turn was dropped from long-term
+        # memory instead of being stored.  Flatten first.  Images become an
+        # "[N image(s)]" marker so an evidence-only turn still records that
+        # media arrived rather than collapsing to "" and being skipped below.
+        # ``messages`` stays raw: it is the structured transcript providers
+        # parse themselves.
+        user_text = _summarize_user_message_for_log(original_user_message)
+        response_text = _summarize_user_message_for_log(final_response)
+        if not (user_text and response_text):
+            return
         try:
             sync_kwargs = {"session_id": self.session_id or ""}
             if messages is not None:
                 sync_kwargs["messages"] = messages
             self._memory_manager.sync_all(
-                original_user_message,
-                final_response,
+                user_text,
+                response_text,
                 **sync_kwargs,
             )
             self._memory_manager.queue_prefetch_all(
-                original_user_message,
+                user_text,
                 session_id=self.session_id or "",
             )
         except Exception:
