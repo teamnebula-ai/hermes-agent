@@ -119,6 +119,8 @@ Hermes has two entry points: start the terminal UI with `hermes`, or run the gat
 
 For the full command lists, see the [CLI guide](https://hermes-agent.nousresearch.com/docs/user-guide/cli) and the [Messaging Gateway guide](https://hermes-agent.nousresearch.com/docs/user-guide/messaging).
 
+> **Tool-progress verbosity is per-platform-aware.** Platforms whose messages can't be edited in place (Slack, Signal, email, ...) default `display.tool_progress` to `off` so a busy turn doesn't spam one permanent message per tool call. Setting a global `display.tool_progress` in `config.yaml` overrides that safe default for every platform, including ones without a matching `display.platforms.<name>.tool_progress` pin — if that happens, the gateway now logs a startup warning naming the shadowed platform instead of staying silent about it.
+
 ---
 
 ## Documentation
