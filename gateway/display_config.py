@@ -21,7 +21,10 @@ config migration (version bump) automatically moves the old format into the new
 
 from __future__ import annotations
 
+import logging
 from typing import Any
+
+logger = logging.getLogger(__name__)
 
 # ---------------------------------------------------------------------------
 # Overrideable display settings and their global defaults
@@ -204,6 +207,53 @@ def resolve_display_setting(
         return val
 
     return fallback
+
+
+def warn_shadowed_tool_progress_defaults(
+    user_config: dict, connected_platform_keys: Any
+) -> None:
+    """Log a warning for connected platforms whose safe ``tool_progress``
+    default is being silently shadowed by an explicit global override.
+
+    Some platforms (Slack, WhatsApp Cloud, ...) default ``tool_progress`` to
+    ``"off"`` in ``_PLATFORM_DEFAULTS`` because their send API can't edit a
+    posted message in place — ``"new"``/``"all"`` mode then spams one
+    permanent message per tool call (hermes-agent#14663). A bare
+    ``display.tool_progress`` set globally (e.g. for CLI convenience) beats
+    that platform default per the resolution order above, and does so
+    silently: nothing surfaces until someone notices a channel filling up
+    with raw exec/apply_patch transcripts. Call this once per gateway
+    startup, after the set of connected platforms is known, so the drift
+    shows up in logs instead of in a customer-facing channel.
+    """
+    display_cfg = user_config.get("display") or {}
+    global_override = display_cfg.get("tool_progress")
+    if global_override is None:
+        return
+    resolved_override = _normalise("tool_progress", global_override)
+    platforms_cfg = display_cfg.get("platforms") or {}
+    legacy_overrides = display_cfg.get("tool_progress_overrides")
+    if not isinstance(legacy_overrides, dict):
+        legacy_overrides = {}
+
+    for platform_key in connected_platform_keys:
+        plat_overrides = platforms_cfg.get(platform_key)
+        pinned = isinstance(plat_overrides, dict) and plat_overrides.get("tool_progress") is not None
+        pinned = pinned or legacy_overrides.get(platform_key) is not None
+        if pinned:
+            continue
+        plat_default = (_PLATFORM_DEFAULTS.get(platform_key) or {}).get("tool_progress")
+        if plat_default == "off" and resolved_override != "off":
+            logger.warning(
+                "display.tool_progress=%r is shadowing %s's safe built-in "
+                "default (tool_progress: 'off' — its messages can't be "
+                "edited in place, so verbose modes spam a permanent message "
+                "per tool call). Add display.platforms.%s.tool_progress: "
+                "'off' to restore it.",
+                global_override,
+                platform_key,
+                platform_key,
+            )
 
 
 # ---------------------------------------------------------------------------

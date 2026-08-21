@@ -4788,7 +4788,15 @@ class GatewayRunner:
         
         if connected_count > 0:
             logger.info("Gateway running with %s platform(s)", connected_count)
-        
+            try:
+                from gateway.display_config import warn_shadowed_tool_progress_defaults
+                warn_shadowed_tool_progress_defaults(
+                    _load_gateway_config(),
+                    [p.value for p in self.adapters.keys()],
+                )
+            except Exception:
+                logger.debug("tool_progress shadow check failed", exc_info=True)
+
         # Build initial channel directory for send_message name resolution
         try:
             from gateway.channel_directory import build_channel_directory
