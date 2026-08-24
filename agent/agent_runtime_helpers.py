@@ -724,6 +724,9 @@ def recover_with_credential_pool(
                 rotate_status,
                 getattr(next_entry, "id", "?"),
             )
+            # Drop any same-credential model hop first — the model that hop
+            # selected may not be entitled on the credential we rotate to.
+            restore_primary_model_for_rotation(agent)
             agent._swap_credential(next_entry)
             return True, False
 
