@@ -305,9 +305,7 @@ def _check_sensitive_path(filepath: str, task_id: str = "default") -> str | None
     # Temp directories first: on macOS they live under /private/var/, which is
     # itself a denied prefix. Checked before the deny list so the carve-out wins.
     temp_prefixes = _temp_dir_prefixes()
-    in_temp = any(
-        resolved.startswith(p) or normalized.startswith(p) for p in temp_prefixes
-    )
+    in_temp = any(resolved.startswith(p) for p in temp_prefixes)
     if not in_temp:
         for prefix in _SENSITIVE_PATH_PREFIXES:
             if resolved.startswith(prefix) or normalized.startswith(prefix):
