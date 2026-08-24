@@ -13,6 +13,13 @@ Exception: ``display.streaming`` is CLI-only.  Gateway streaming follows the
 top-level ``streaming`` config unless ``display.platforms.<platform>.streaming``
 sets an explicit per-platform override.
 
+Exception: for platforms whose transport can't edit a posted message in place
+(see ``_NO_EDIT_PLATFORMS``), a bare global ``display.tool_progress`` does NOT
+beat their built-in ``"off"`` default — verbose modes there spam one permanent
+message per tool call (hermes-agent#14663). Only an explicit per-platform pin
+(``display.platforms.<platform>.tool_progress``, or the legacy
+``tool_progress_overrides``) can turn it back on for those platforms.
+
 Backward compatibility: ``display.tool_progress_overrides`` is still read as a
 fallback for ``tool_progress`` when no ``display.platforms`` entry exists.  A
 config migration (version bump) automatically moves the old format into the new
@@ -143,6 +150,31 @@ _PLATFORM_DEFAULTS: dict[str, dict[str, Any]] = {
 # Canonical set of per-platform overrideable keys (for validation).
 OVERRIDEABLE_KEYS = frozenset(_GLOBAL_DEFAULTS.keys())
 
+# Platforms whose send API can't edit/delete a posted message in place, so a
+# verbose tool_progress mode there means every tool call becomes its own
+# permanent message (hermes-agent#14663) — raw bash/python exec output,
+# potentially carrying file contents, env values, and paths. Their built-in
+# "off" default guards against that leak and is protected in
+# resolve_display_setting() below: a bare global display.tool_progress can't
+# silently re-enable it, only an explicit per-platform pin can.
+#
+# Excludes platforms whose "off" default is just a quiet-by-default UX choice
+# despite supporting in-place edits (e.g. Telegram), and WhatsApp, whose
+# Baileys bridge supports message edits.
+_NO_EDIT_PLATFORMS = frozenset({
+    "slack",
+    "signal",
+    "bluebubbles",
+    "weixin",
+    "wecom",
+    "wecom_callback",
+    "dingtalk",
+    "email",
+    "sms",
+    "webhook",
+    "homeassistant",
+})
+
 
 def resolve_display_setting(
     user_config: dict,
@@ -189,7 +221,11 @@ def resolve_display_setting(
     # 2. Global user setting (display.<key>).  Skip display.streaming because
     # that key controls only CLI terminal streaming; gateway token streaming is
     # governed by the top-level streaming config plus per-platform overrides.
-    if setting != "streaming":
+    # Skip tool_progress for no-edit platforms too: their safe "off" default
+    # (step 3) must win over a bare global setting — see _NO_EDIT_PLATFORMS.
+    if setting != "streaming" and not (
+        setting == "tool_progress" and platform_key in _NO_EDIT_PLATFORMS
+    ):
         val = display_cfg.get(setting)
         if val is not None:
             return _normalise(setting, val)
@@ -212,19 +248,17 @@ def resolve_display_setting(
 def warn_shadowed_tool_progress_defaults(
     user_config: dict, connected_platform_keys: Any
 ) -> None:
-    """Log a warning for connected platforms whose safe ``tool_progress``
-    default is being silently shadowed by an explicit global override.
+    """Log a warning for connected no-edit platforms where a bare global
+    ``display.tool_progress`` override doesn't apply.
 
-    Some platforms (Slack, WhatsApp Cloud, ...) default ``tool_progress`` to
-    ``"off"`` in ``_PLATFORM_DEFAULTS`` because their send API can't edit a
+    Platforms in ``_NO_EDIT_PLATFORMS`` (Slack, Signal, email, ...) default
+    ``tool_progress`` to ``"off"`` because their send API can't edit a
     posted message in place — ``"new"``/``"all"`` mode then spams one
-    permanent message per tool call (hermes-agent#14663). A bare
-    ``display.tool_progress`` set globally (e.g. for CLI convenience) beats
-    that platform default per the resolution order above, and does so
-    silently: nothing surfaces until someone notices a channel filling up
-    with raw exec/apply_patch transcripts. Call this once per gateway
-    startup, after the set of connected platforms is known, so the drift
-    shows up in logs instead of in a customer-facing channel.
+    permanent message per tool call (hermes-agent#14663).
+    ``resolve_display_setting()`` already protects that default from a bare
+    global override for these platforms; this just makes the mismatch
+    between the configured global setting and the platform's actual
+    behavior visible in logs at startup, instead of a silent surprise.
     """
     display_cfg = user_config.get("display") or {}
     global_override = display_cfg.get("tool_progress")
@@ -242,15 +276,16 @@ def warn_shadowed_tool_progress_defaults(
         pinned = pinned or legacy_overrides.get(platform_key) is not None
         if pinned:
             continue
-        plat_default = (_PLATFORM_DEFAULTS.get(platform_key) or {}).get("tool_progress")
-        if plat_default == "off" and resolved_override != "off":
+        if platform_key in _NO_EDIT_PLATFORMS and resolved_override != "off":
             logger.warning(
-                "display.tool_progress=%r is shadowing %s's safe built-in "
-                "default (tool_progress: 'off' — its messages can't be "
-                "edited in place, so verbose modes spam a permanent message "
-                "per tool call). Add display.platforms.%s.tool_progress: "
-                "'off' to restore it.",
+                "display.tool_progress=%r does not apply to %s: its safe "
+                "built-in default ('off') can't be overridden by a bare "
+                "global setting, because %s's messages can't be edited in "
+                "place — verbose modes would spam a permanent message per "
+                "tool call. Set display.platforms.%s.tool_progress "
+                "explicitly if you really want verbose progress there.",
                 global_override,
+                platform_key,
                 platform_key,
                 platform_key,
             )

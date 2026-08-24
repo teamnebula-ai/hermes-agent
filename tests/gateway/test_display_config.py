@@ -80,6 +80,38 @@ class TestResolveDisplaySetting:
         assert resolve_display_setting(config, "slack", "tool_progress") == "off"
         assert resolve_display_setting(config, "telegram", "tool_progress") == "all"
 
+    def test_bare_global_override_cannot_shadow_no_edit_platform_default(self):
+        """A bare global display.tool_progress must not beat the safe 'off'
+        default of a platform that can't edit posted messages (e.g. Slack) —
+        raw exec/apply_patch transcripts would otherwise post permanently
+        into a customer-facing channel (hermes-agent#14663)."""
+        from gateway.display_config import resolve_display_setting
+
+        config = {"display": {"tool_progress": "all"}}
+        assert resolve_display_setting(config, "slack", "tool_progress") == "off"
+
+    def test_explicit_per_platform_pin_still_opts_no_edit_platform_in(self):
+        """An explicit display.platforms.<plat>.tool_progress pin still wins
+        for no-edit platforms — only the bare global setting is blocked."""
+        from gateway.display_config import resolve_display_setting
+
+        config = {
+            "display": {
+                "tool_progress": "all",
+                "platforms": {"slack": {"tool_progress": "all"}},
+            }
+        }
+        assert resolve_display_setting(config, "slack", "tool_progress") == "all"
+
+    def test_bare_global_override_still_applies_to_editable_platforms(self):
+        """Telegram supports in-place edits, so its quiet-by-default 'off'
+        is a UX choice, not a leak-prevention default — a bare global
+        override should still apply there."""
+        from gateway.display_config import resolve_display_setting
+
+        config = {"display": {"tool_progress": "new"}}
+        assert resolve_display_setting(config, "telegram", "tool_progress") == "new"
+
 
 # ---------------------------------------------------------------------------
 # Backward compatibility: tool_progress_overrides
