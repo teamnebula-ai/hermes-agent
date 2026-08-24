@@ -604,6 +604,9 @@ def recover_with_credential_pool(
                 rotate_status,
                 getattr(next_entry, "id", "?"),
             )
+            # Drop any same-credential model hop first — the model that hop
+            # selected may not be entitled on the credential we rotate to.
+            restore_primary_model_for_rotation(agent)
             agent._swap_credential(next_entry)
             return True, False
         return False, has_retried_429
@@ -628,6 +631,9 @@ def recover_with_credential_pool(
                     rotate_status,
                     getattr(next_entry, "id", "?"),
                 )
+                # Drop any same-credential model hop first — the model that hop
+                # selected may not be entitled on the credential we rotate to.
+                restore_primary_model_for_rotation(agent)
                 agent._swap_credential(next_entry)
                 return True, False
             return False, True
@@ -652,6 +658,9 @@ def recover_with_credential_pool(
                 rotate_status,
                 getattr(next_entry, "id", "?"),
             )
+            # Drop any same-credential model hop first — the model that hop
+            # selected may not be entitled on the credential we rotate to.
+            restore_primary_model_for_rotation(agent)
             agent._swap_credential(next_entry)
             return True, False
         return False, True
@@ -977,6 +986,62 @@ def restore_primary_runtime(agent) -> bool:
     except Exception as e:
         logger.warning("Failed to restore primary runtime: %s", e)
         return False
+
+
+def restore_primary_model_for_rotation(agent) -> bool:
+    """Undo a same-credential model hop just before rotating credentials.
+
+    When ``fallback_providers`` carries an entry on the same provider+base_url
+    as the primary, activating it swaps only the MODEL and keeps the credential
+    (gpt-5.5 -> gpt-5.3-codex-spark on the same ChatGPT account).  If the pool
+    then rotates to a different account while that model is still active, the
+    new account gets a model it may not be entitled to: gpt-5.3-codex-spark
+    answers HTTP 400 "not supported when using Codex with a ChatGPT account" on
+    plans without the entitlement.  A 400 is not a rate limit, so the pool
+    would not rotate again — the remaining accounts get skipped and the chain
+    jumps straight to the cross-provider fallback.
+
+    Restoring the primary model first means every rotated-to credential is
+    tried with the primary model.
+
+    ``_fallback_index`` is preserved on purpose: the same-credential hop is
+    spent, so once every credential is exhausted it is the NEXT chain entry (a
+    real provider failover) that activates, not the model hop again.
+
+    Returns True when a restore actually happened.
+    """
+    if not getattr(agent, "_fallback_activated", False):
+        return False
+    primary = getattr(agent, "_primary_runtime", None) or {}
+    primary_provider = str(primary.get("provider") or "").strip().lower()
+    current_provider = str(getattr(agent, "provider", "") or "").strip().lower()
+    if not primary_provider or primary_provider != current_provider:
+        # On a genuine cross-provider fallback — leave it alone.
+        return False
+    if str(primary.get("model") or "") == str(getattr(agent, "model", "") or ""):
+        return False  # already on the primary model
+
+    saved_index = int(getattr(agent, "_fallback_index", 0) or 0)
+    saved_cooldown = getattr(agent, "_rate_limited_until", 0)
+    # The cooldown describes the credential being left behind, not the model.
+    # The credential we rotate to has its own quota window.
+    agent._rate_limited_until = 0
+    try:
+        restored = restore_primary_runtime(agent)
+    except Exception as exc:  # pragma: no cover - defensive
+        logger.warning("Primary-model restore before rotation failed: %s", exc)
+        restored = False
+    agent._fallback_index = saved_index
+    if not restored:
+        agent._rate_limited_until = saved_cooldown
+    else:
+        logger.info(
+            "Restored primary model %s before credential rotation "
+            "(same-credential model hop spent; chain index held at %d)",
+            getattr(agent, "model", "?"), saved_index,
+        )
+    return restored
+
 
 # Which error types indicate a transient transport failure worth
 # one more attempt with a rebuilt client / connection pool.
@@ -2485,6 +2550,7 @@ __all__ = [
     "try_recover_primary_transport",
     "drop_thinking_only_and_merge_users",
     "restore_primary_runtime",
+    "restore_primary_model_for_rotation",
     "extract_reasoning",
     "dump_api_request_debug",
     "anthropic_prompt_cache_policy",

@@ -47,6 +47,8 @@ must not collide across profiles running at the same time.
 | --- | --- | --- |
 | External memory sync | `run_agent.py` flattens multimodal `content` part lists to text before handing them to memory providers, recording attachments as an `[N image(s)]` marker | Providers feed these values into text APIs. Mem0 v3 rejects a list at `POST /v3/memories/add/` with `Not a valid string.`, which silently dropped every multimodal turn from long-term memory instead of storing it. Affected any profile whose worker submits media, including image-evidence agents. |
 
+| Quota failover ordering | A `fallback_providers` entry on the same provider and `base_url` as the primary is treated as a *same-credential model hop* and taken **before** credential-pool rotation (`_next_fallback_is_same_credential` in `run_agent.py`). The primary model is restored before any rotation (`restore_primary_model_for_rotation` in `agent/agent_runtime_helpers.py`), so each rotated-to credential is tried with the primary model. | Upstream always lets pool rotation win, so a second model on the *same* account is only reached after every credential is spent. That matters when the second model is entitled on one account only: `gpt-5.3-codex-spark` answers HTTP 400 `not supported when using Codex with a ChatGPT account` on plans without the entitlement, so rotating while it was active skipped the remaining ChatGPT accounts and jumped straight to the cross-provider fallback. Configured order is now: primary model on the primary account, spark on that same account, the primary model on each additional ChatGPT account, then Anthropic last. |
+
 Operational context for these deployments lives in
 [`teamnebula-ai/hermes-infra`](https://github.com/teamnebula-ai/hermes-infra).
 
