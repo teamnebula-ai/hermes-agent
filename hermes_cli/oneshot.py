@@ -53,6 +53,11 @@ def _validate_explicit_toolsets(toolsets: object = None) -> tuple[list[str] | No
     if normalized is None:
         return None, None
 
+    if "none" in normalized:
+        if len(normalized) != 1:
+            return None, "hermes -z: --toolsets none cannot be combined with other toolsets.\n"
+        return [], None
+
     try:
         from toolsets import validate_toolset
     except Exception as exc:
@@ -324,8 +329,14 @@ def _run_agent(
     # has enabled for "cli". sorted() gives stable ordering for config-derived
     # sets; explicit values preserve user order.
     toolsets_list = _normalize_toolsets(toolsets)
-    if toolsets_list is None and use_config_toolsets:
-        toolsets_list = sorted(_get_platform_tools(cfg, "cli"))
+    if toolsets_list is None:
+        if use_config_toolsets:
+            toolsets_list = sorted(_get_platform_tools(cfg, "cli"))
+        else:
+            # An explicit `--toolsets none` reaches this function as an empty
+            # list. Preserve that boundary instead of turning it back into the
+            # unrestricted `None` default.
+            toolsets_list = []
 
     session_db = _create_session_db_for_oneshot()
     # Read the effective fallback chain from profile config so oneshot workers
