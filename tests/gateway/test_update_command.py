@@ -13,6 +13,7 @@ import pytest
 from gateway.config import Platform
 from gateway.platforms.base import MessageEvent
 from gateway.session import SessionSource
+import gateway.run as gateway_run
 
 
 def _make_event(text="/update", platform=Platform.TELEGRAM,
@@ -378,6 +379,32 @@ class TestUpdateCommandPlatformGate:
     registry's ``allow_update_command=True`` fallback.  Programmatic
     interfaces (ACP, API server, webhooks) must be blocked.
     """
+
+    @pytest.fixture(autouse=True)
+    def _no_real_updater(self, monkeypatch):
+        """Stop the allow-path tests spawning a real ``hermes update``.
+
+        The tests below assert only on the platform gate, which sits at the
+        very top of ``_handle_update_command``. Letting the handler run past
+        the gate used to reach its detached
+        ``Popen([... "update", "--gateway"])``, and that child ran the real
+        update against ``PROJECT_ROOT``: on CI's detached-HEAD checkout it
+        took the "switching to main for update" branch and ran
+        ``git checkout main`` / ``git checkout -B main origin/main`` on the
+        working tree mid-run.
+
+        Every test file pytest compiled after that point saw ``main``'s
+        source instead of the PR's. Only files the PR actually changed
+        differ between the two, so it surfaced as a single unrelated file
+        failing with tracebacks whose line numbers did not exist in the
+        checked-out source. Detached spawn plus 8-way parallelism made which
+        file got hit look random.
+
+        Returning no binary short-circuits at ``hermes_cmd_not_found``, which
+        is *after* the gate, so these tests still prove exactly what they
+        claim and nothing touches the repo.
+        """
+        monkeypatch.setattr(gateway_run, "_resolve_hermes_bin", lambda: None)
 
     @pytest.mark.asyncio
     async def test_blocks_programmatic_interface(self, monkeypatch):
