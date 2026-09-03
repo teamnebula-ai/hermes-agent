@@ -13,6 +13,11 @@ Hermetic-test invariants enforced here (see AGENTS.md for rationale):
 3. **Deterministic runtime.** TZ=UTC, LANG=C.UTF-8, PYTHONHASHSEED=0.
 4. **No HERMES_SESSION_* inheritance** — the agent's current gateway
    session must not leak into tests.
+5. **No real browser windows.** ``BROWSER=true`` is set at import time so
+   OAuth paths calling ``webbrowser.open()`` cannot put a live consent page
+   in front of whoever is running the suite. Set in the environment, not by
+   monkeypatch, because the runner spawns a subprocess per test file and
+   only the environment crosses that boundary.
 
 These invariants make the local test run match CI closely. Gaps that
 remain (CPU count, xdist worker count) are addressed by the canonical
@@ -46,6 +51,33 @@ if str(PROJECT_ROOT) not in sys.path:
 # isolation (too slow at ~17k tests).
 #
 # See ``scripts/run_tests_parallel.py`` for the runner.
+
+
+# ── No real browser windows ────────────────────────────────────────────────
+#
+# ``hermes_cli/auth.py`` opens a browser on six OAuth paths (xAI/Grok,
+# Spotify, the device-code flows), and ``tools/mcp_oauth.py`` on a seventh.
+# Only one test file stubs ``webbrowser.open``; everything else reaching
+# those paths launches a REAL browser. On macOS that shells out to
+# ``osascript`` and puts a live consent page — "Authorize Grok Build" — in
+# front of whoever is running the suite. It fired ~12 times in one afternoon
+# before anyone traced it back to a test run.
+#
+# This has to be an ENVIRONMENT variable, not a monkeypatch. Tests run via
+# ``scripts/run_tests_parallel.py``, which spawns ``python -m pytest <file>``
+# per file: a fixture patching the in-process ``webbrowser`` module cannot
+# reach a child interpreter, but the environment is inherited by every
+# descendant. It is set at import time, before any test module loads, so a
+# module-scope or import-time call is covered too.
+#
+# ``BROWSER`` is honoured by ``webbrowser`` itself and by this repo's own
+# ``_can_open_graphical_browser()`` (hermes_cli/auth.py), which consults it
+# before deciding a window will appear. ``true`` is /usr/bin/true: it accepts
+# the URL, does nothing, exits 0.
+#
+# Deliberately unconditional. Gating on CI would leave exactly the machine
+# that has a human sitting at it unprotected.
+os.environ["BROWSER"] = "true"
 
 
 # ── Credential env-var filter ──────────────────────────────────────────────
