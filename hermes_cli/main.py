@@ -9385,13 +9385,36 @@ def _verify_core_dependencies_installed(
     # Apply environment markers to drop deps that don't apply on this platform
     # (e.g. ``ptyprocess ; sys_platform != 'win32'`` is correctly skipped on
     # Windows). Without markers we'd false-positive every cross-platform exclusion.
+    #
+    # Evaluate against an EXPLICIT environment rather than letting packaging build its
+    # own. As of packaging 26.3 ``default_environment()`` is computed once per process
+    # and cached — its own docstring notes that patching ``sys``/``os``/``platform``
+    # after the first call has no effect, and that callers wanting different values
+    # must pass an explicit environment. Reading the values here keeps this function's
+    # result a property of the current process state instead of whatever was true the
+    # first time anything in the process evaluated a marker.
+    marker_env: dict | None
+    try:
+        from packaging.markers import default_environment  # type: ignore
+
+        marker_env = dict(default_environment())
+        marker_env["sys_platform"] = sys.platform
+        marker_env["os_name"] = os.name
+    except Exception:
+        marker_env = None
+
     applicable: list[str] = []
     for name, marker in deps:
         if marker is None:
             applicable.append(name)
             continue
         try:
-            if marker.evaluate():  # type: ignore[union-attr]
+            ok = (
+                marker.evaluate(marker_env)  # type: ignore[union-attr]
+                if marker_env is not None
+                else marker.evaluate()  # type: ignore[union-attr]
+            )
+            if ok:
                 applicable.append(name)
         except Exception:
             applicable.append(name)

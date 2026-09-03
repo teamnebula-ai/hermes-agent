@@ -13,6 +13,11 @@ Hermetic-test invariants enforced here (see AGENTS.md for rationale):
 3. **Deterministic runtime.** TZ=UTC, LANG=C.UTF-8, PYTHONHASHSEED=0.
 4. **No HERMES_SESSION_* inheritance** — the agent's current gateway
    session must not leak into tests.
+5. **No real browser windows.** ``BROWSER=true`` is set at import time so
+   OAuth paths calling ``webbrowser.open()`` cannot put a live consent page
+   in front of whoever is running the suite. Set in the environment, not by
+   monkeypatch, because the runner spawns a subprocess per test file and
+   only the environment crosses that boundary.
 
 These invariants make the local test run match CI closely. Gaps that
 remain (CPU count, xdist worker count) are addressed by the canonical
@@ -46,6 +51,33 @@ if str(PROJECT_ROOT) not in sys.path:
 # isolation (too slow at ~17k tests).
 #
 # See ``scripts/run_tests_parallel.py`` for the runner.
+
+
+# ── No real browser windows ────────────────────────────────────────────────
+#
+# ``hermes_cli/auth.py`` opens a browser on six OAuth paths (xAI/Grok,
+# Spotify, the device-code flows), and ``tools/mcp_oauth.py`` on a seventh.
+# Only one test file stubs ``webbrowser.open``; everything else reaching
+# those paths launches a REAL browser. On macOS that shells out to
+# ``osascript`` and puts a live consent page — "Authorize Grok Build" — in
+# front of whoever is running the suite. It fired ~12 times in one afternoon
+# before anyone traced it back to a test run.
+#
+# This has to be an ENVIRONMENT variable, not a monkeypatch. Tests run via
+# ``scripts/run_tests_parallel.py``, which spawns ``python -m pytest <file>``
+# per file: a fixture patching the in-process ``webbrowser`` module cannot
+# reach a child interpreter, but the environment is inherited by every
+# descendant. It is set at import time, before any test module loads, so a
+# module-scope or import-time call is covered too.
+#
+# ``BROWSER`` is honoured by ``webbrowser`` itself and by this repo's own
+# ``_can_open_graphical_browser()`` (hermes_cli/auth.py), which consults it
+# before deciding a window will appear. ``true`` is /usr/bin/true: it accepts
+# the URL, does nothing, exits 0.
+#
+# Deliberately unconditional. Gating on CI would leave exactly the machine
+# that has a human sitting at it unprotected.
+os.environ["BROWSER"] = "true"
 
 
 # ── Credential env-var filter ──────────────────────────────────────────────
@@ -714,7 +746,55 @@ def _live_system_guard(request, monkeypatch):
                     return True
         return False
 
+    def _is_self_update(cmd) -> bool:
+        """True for a command that runs Hermes' own updater.
+
+        ``hermes update`` rewrites the checkout it is run from. When the
+        checkout is a detached HEAD (which is exactly what
+        ``actions/checkout`` produces for a pull_request build) the update
+        path switches the working tree to ``main``:
+
+            git checkout main
+            git checkout -B main origin/main      # when main isn't local yet
+
+        A test that reaches ``_handle_update_command`` past its platform
+        gate spawns that updater *detached*, so the damage lands seconds
+        later in whichever test file pytest happens to compile next. The
+        symptom is a wholly unrelated file failing on source it never
+        contained. Blocking the spawn is the only reliable place to stop
+        it — once the child is running it is outside this process and
+        beyond the reach of any in-process patch.
+        """
+        cmd_str = _cmd_to_string(cmd)
+        low = cmd_str.lower()
+        if "update" not in low:
+            return False
+        try:
+            tokens = _shlex.split(cmd_str)
+        except ValueError:
+            tokens = cmd_str.split()
+        for i, tok in enumerate(tokens):
+            head = tok.rsplit("/", 1)[-1].rsplit("\\", 1)[-1].lower()
+            # `hermes update`, and the `python -m hermes_cli.main update`
+            # / `bash -c "... hermes update --gateway"` spellings the
+            # gateway actually uses.
+            is_hermes = head.startswith("hermes") or head == "hermes_cli.main"
+            if is_hermes and "update" in tokens[i + 1:]:
+                return True
+        return "hermes update" in low or "hermes_cli.main update" in low
+
     def _check_subprocess_cmd(name, cmd):
+        if _is_self_update(cmd):
+            raise RuntimeError(
+                f"tests/conftest.py live-system guard: blocked "
+                f"subprocess.{name}({cmd!r}) — this spawns Hermes' own "
+                "updater, which runs `git checkout main` against the "
+                "checkout it is started from and silently rewrites the "
+                "working tree other tests are still being compiled from. "
+                "Stub the spawn (e.g. patch gateway.run._resolve_hermes_bin "
+                "to return None) or mark with "
+                "@pytest.mark.live_system_guard_bypass."
+            )
         if _is_blocked_systemctl(cmd):
             raise RuntimeError(
                 f"tests/conftest.py live-system guard: blocked "
