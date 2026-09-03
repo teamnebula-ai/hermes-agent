@@ -2189,6 +2189,11 @@ def provider_model_ids(provider: Optional[str], *, force_refresh: bool = False) 
                     return live
         except Exception:
             pass
+        # GMI already had its one live-catalog attempt above. Return the
+        # curated offline catalog here instead of falling through to the
+        # generic provider-profile path, which would issue the same request a
+        # second time and could turn a failed refresh into a different result.
+        return list(_PROVIDER_MODELS.get("gmi", []))
     if normalized == "custom":
         base_url = _get_custom_base_url()
         if base_url:
