@@ -723,6 +723,35 @@ def test_oneshot_all_toolsets_warns_about_ignored_extra_entries(monkeypatch, cap
     assert "ignoring additional entries: nope" in capsys.readouterr().err
 
 
+def test_oneshot_none_toolset_disables_all_tools(monkeypatch, capsys):
+    _stub_plugin_discovery(monkeypatch)
+    import hermes_cli.oneshot as oneshot_mod
+
+    captured = {}
+
+    def fake_run_agent(prompt, **kwargs):
+        captured["prompt"] = prompt
+        captured.update(kwargs)
+        return "done"
+
+    monkeypatch.setattr(oneshot_mod, "_run_agent", fake_run_agent)
+
+    assert oneshot_mod.run_oneshot("review", toolsets="none") == 0
+    assert captured["prompt"] == "review"
+    assert captured["toolsets"] == []
+    assert captured["use_config_toolsets"] is False
+    assert capsys.readouterr().out == "done\n"
+
+
+def test_oneshot_none_toolset_cannot_be_combined():
+    from hermes_cli.oneshot import _validate_explicit_toolsets
+
+    valid, error = _validate_explicit_toolsets("none,web")
+
+    assert valid is None
+    assert error == "hermes -z: --toolsets none cannot be combined with other toolsets.\n"
+
+
 def test_oneshot_accepts_plugin_toolset_after_discovery(monkeypatch):
     import toolsets
 
@@ -856,6 +885,11 @@ def test_oneshot_wires_session_db_for_recall(monkeypatch):
     assert captured["session_db"] is sentinel_db
     assert captured["enabled_toolsets"] == ["session_search"]
     assert captured["prompt"] == "recall this"
+
+    captured.clear()
+    assert _run_agent("review this", toolsets=[], use_config_toolsets=False) == "ok"
+    assert captured["enabled_toolsets"] == []
+    assert captured["prompt"] == "review this"
 
 
 def test_launch_tui_exports_model_provider_and_toolsets(monkeypatch, main_mod):
