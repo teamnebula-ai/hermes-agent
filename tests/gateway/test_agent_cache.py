@@ -290,7 +290,7 @@ class TestExtractCacheBustingConfig:
 
         monkeypatch.setattr(GatewayRunner, "_extract_honcho_cache_busting_config", _boom)
 
-        out = GatewayRunner._extract_cache_busting_config({"memory": {"provider": "mem0"}})
+        out = GatewayRunner._extract_cache_busting_config({"memory": {"provider": "supermemory"}})
 
         assert called is False
         assert out["honcho.peer_name"] is None
@@ -334,11 +334,11 @@ class TestExtractCacheBustingConfig:
         )
 
         sig_honcho = GatewayRunner._extract_cache_busting_config({"memory": {"provider": "honcho"}})
-        sig_mem0 = GatewayRunner._extract_cache_busting_config({"memory": {"provider": "mem0"}})
+        sig_supermemory = GatewayRunner._extract_cache_busting_config({"memory": {"provider": "supermemory"}})
 
         assert sig_honcho["memory.provider"] == "honcho"
-        assert sig_mem0["memory.provider"] == "mem0"
-        assert sig_honcho != sig_mem0
+        assert sig_supermemory["memory.provider"] == "supermemory"
+        assert sig_honcho != sig_supermemory
 
     def test_honcho_cache_busting_config_memoized_by_mtime(self, monkeypatch, tmp_path):
         """Repeated Honcho extraction for unchanged honcho.json should reuse parse result."""
