@@ -4788,7 +4788,15 @@ class GatewayRunner:
         
         if connected_count > 0:
             logger.info("Gateway running with %s platform(s)", connected_count)
-        
+            try:
+                from gateway.display_config import warn_shadowed_tool_progress_defaults
+                warn_shadowed_tool_progress_defaults(
+                    _load_gateway_config(),
+                    [p.value for p in self.adapters.keys()],
+                )
+            except Exception:
+                logger.debug("tool_progress shadow check failed", exc_info=True)
+
         # Build initial channel directory for send_message name resolution
         try:
             from gateway.channel_directory import build_channel_directory
@@ -17208,7 +17216,7 @@ class GatewayRunner:
         # Per-platform display settings — resolve via display_config module
         # which checks display.platforms.<platform>.<key> first, then
         # display.<key> global, then built-in platform defaults.
-        from gateway.display_config import resolve_display_setting
+        from gateway.display_config import resolve_display_setting, _NO_EDIT_PLATFORMS
 
         # Apply tool preview length config (0 = no limit)
         try:
@@ -17236,9 +17244,15 @@ class GatewayRunner:
                 and platform_key in _legacy_tp_overrides
             )
         )
+        # Mirror resolve_display_setting()'s _NO_EDIT_PLATFORMS shield: a bare
+        # env var, like a bare global config setting, must not re-enable
+        # verbose progress on platforms that can't edit a posted message
+        # (hermes-agent#14663) — only an explicit per-platform pin can.
         progress_mode = (
             _env_tp
-            if _env_tp and not _tool_progress_configured
+            if _env_tp
+            and not _tool_progress_configured
+            and platform_key not in _NO_EDIT_PLATFORMS
             else (_resolved_tp or _env_tp or "all")
         )
         # Disable tool progress for webhooks - they don't support message editing,
