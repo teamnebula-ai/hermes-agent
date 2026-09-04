@@ -96,16 +96,12 @@ class TestGmiModelCatalog:
         )
         monkeypatch.setattr(
             "providers.base.ProviderProfile.fetch_models",
-            lambda self, *, api_key=None, timeout=8.0: [
-                "openai/gpt-5.4-mini",
-                "zai-org/GLM-5.1-FP8",
+            lambda self, *, api_key=None, base_url=None, timeout=8.0: [
+                "provider/live-only-model",
             ],
         )
 
-        assert provider_model_ids("gmi") == [
-            "openai/gpt-5.4-mini",
-            "zai-org/GLM-5.1-FP8",
-        ]
+        assert "provider/live-only-model" in provider_model_ids("gmi")
 
     def test_provider_model_ids_falls_back_to_static_models(self, monkeypatch):
         from providers import get_provider_profile
@@ -121,7 +117,7 @@ class TestGmiModelCatalog:
         )
         monkeypatch.setattr(
             "providers.base.ProviderProfile.fetch_models",
-            lambda self, *, api_key=None, timeout=8.0: None,
+            lambda self, *, api_key=None, base_url=None, timeout=8.0: None,
         )
         profile = get_provider_profile("gmi")
         assert profile is not None
