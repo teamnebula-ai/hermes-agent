@@ -161,12 +161,12 @@ class TestMemoryManager:
         """Only one non-builtin provider is allowed."""
         mgr = MemoryManager()
         builtin = FakeMemoryProvider("builtin")
-        ext1 = FakeMemoryProvider("mem0")
+        ext1 = FakeMemoryProvider("external-a")
         ext2 = FakeMemoryProvider("hindsight")
         mgr.add_provider(builtin)
         mgr.add_provider(ext1)
         mgr.add_provider(ext2)  # should be rejected
-        assert [p.name for p in mgr.providers] == ["builtin", "mem0"]
+        assert [p.name for p in mgr.providers] == ["builtin", "external-a"]
         assert len(mgr.providers) == 2
 
     def test_system_prompt_merges_blocks(self):

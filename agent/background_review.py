@@ -382,7 +382,7 @@ def _run_review_in_thread(
             if _parent_api_mode == "codex_app_server":
                 _parent_api_mode = "codex_responses"
             # skip_memory=True keeps the review fork from
-            # touching external memory plugins (honcho, mem0,
+            # touching external memory plugins (honcho, hindsight,
             # supermemory, etc.).  Without it, the fork's
             # __init__ rebuilds its own _memory_manager from
             # config, scoped to the parent's session_id, and

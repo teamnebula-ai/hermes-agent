@@ -17,7 +17,7 @@ Hermes 有多种不同的可插拔接口——有些使用 Python `register_*` A
 | 自定义工具、钩子、斜杠命令、技能或 CLI 子命令 | **本指南**（通用插件接口） |
 | **LLM / 推理后端**（新提供商） | [模型提供商插件](/developer-guide/model-provider-plugin) |
 | **网关频道**（Discord/Telegram/IRC/Teams 等） | [添加平台适配器](/developer-guide/adding-platform-adapters) |
-| **记忆后端**（Honcho/Mem0/Supermemory 等） | [记忆提供商插件](/developer-guide/memory-provider-plugin) |
+| **记忆后端**（Honcho/Hindsight/Supermemory 等） | [记忆提供商插件](/developer-guide/memory-provider-plugin) |
 | **上下文压缩引擎** | [上下文引擎插件](/developer-guide/context-engine-plugin) |
 | **图像生成后端** | [图像生成提供商插件](/developer-guide/image-gen-provider-plugin) |
 | **视频生成后端** | [视频生成提供商插件](/developer-guide/video-gen-provider-plugin) |
