@@ -169,7 +169,7 @@ from agent.codex_responses_adapter import (
     _derive_responses_function_call_id as _codex_derive_responses_function_call_id,
     _deterministic_call_id as _codex_deterministic_call_id,
     _split_responses_tool_id as _codex_split_responses_tool_id,
-    _summarize_user_message_for_log,  # noqa: F401  # re-exported for tests
+    _summarize_user_message_for_log,  # used below; also re-exported for tests
 )
 from agent.tool_guardrails import (
     ToolGuardrailDecision,
@@ -263,6 +263,44 @@ def _pool_may_recover_from_rate_limit(
     if provider == "google-gemini-cli" or str(base_url or "").startswith("cloudcode-pa://"):
         return False
     return len(pool.entries()) > 1
+
+
+def _next_fallback_is_same_credential(agent) -> bool:
+    """True when the next fallback entry is a model swap on the CURRENT credential.
+
+    A ``fallback_providers`` entry whose provider and base_url match the live
+    runtime is not a provider failover at all — it is a second model on the
+    SAME account.  Our case: ``gpt-5.5`` -> ``gpt-5.3-codex-spark`` on the same
+    ChatGPT credential.
+
+    These hops have to be tried BEFORE the credential pool rotates.  Rotation
+    moves to a different ChatGPT account, and a model like gpt-5.3-codex-spark
+    is entitled on only one of them (the others answer HTTP 400 "not supported
+    when using Codex with a ChatGPT account").  Letting rotation win would mean
+    the hop is never reached on the one account that can serve it.
+
+    Cross-provider entries are deliberately excluded: those stay behind pool
+    rotation so every account is spent before leaving the provider.
+    """
+    try:
+        idx = int(getattr(agent, "_fallback_index", 0) or 0)
+        chain = getattr(agent, "_fallback_chain", None) or []
+        if idx >= len(chain):
+            return False
+        entry = chain[idx] or {}
+        entry_provider = str(entry.get("provider") or "").strip().lower()
+        current_provider = str(getattr(agent, "provider", "") or "").strip().lower()
+        if not entry_provider or entry_provider != current_provider:
+            return False
+        entry_base = str(entry.get("base_url") or "").strip().rstrip("/").lower()
+        current_base = str(getattr(agent, "base_url", "") or "").strip().rstrip("/").lower()
+        if entry_base and current_base and entry_base != current_base:
+            return False
+        entry_model = str(entry.get("model") or "").strip().lower()
+        current_model = str(getattr(agent, "model", "") or "").strip().lower()
+        return bool(entry_model) and entry_model != current_model
+    except Exception:
+        return False
 
 
 def _qwen_portal_headers() -> dict:
@@ -2968,17 +3006,30 @@ class AIAgent:
             return
         if not (self._memory_manager and final_response and original_user_message):
             return
+        # Multimodal turns carry content as a list of typed parts rather than
+        # a string.  Providers feed these two values straight into text APIs,
+        # and Mem0 v3 rejects a list at POST /v3/memories/add/ with "Not a
+        # valid string." — so every such turn was dropped from long-term
+        # memory instead of being stored.  Flatten first.  Images become an
+        # "[N image(s)]" marker so an evidence-only turn still records that
+        # media arrived rather than collapsing to "" and being skipped below.
+        # ``messages`` stays raw: it is the structured transcript providers
+        # parse themselves.
+        user_text = _summarize_user_message_for_log(original_user_message)
+        response_text = _summarize_user_message_for_log(final_response)
+        if not (user_text and response_text):
+            return
         try:
             sync_kwargs = {"session_id": self.session_id or ""}
             if messages is not None:
                 sync_kwargs["messages"] = messages
             self._memory_manager.sync_all(
-                original_user_message,
-                final_response,
+                user_text,
+                response_text,
                 **sync_kwargs,
             )
             self._memory_manager.queue_prefetch_all(
-                original_user_message,
+                user_text,
                 session_id=self.session_id or "",
             )
         except Exception:
