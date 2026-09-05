@@ -1,0 +1,23 @@
+{
+  "scope": "team",
+  "location": "repo",
+  "privatePath": null,
+  "teamPath": null,
+  "engine": "claude",
+  "model": "sonnet",
+  "timeoutSec": 900,
+  "autoCommit": false,
+  "code": "teamnebula-ai__hermes-agent",
+  "origin": {
+    "tenant": "teamnebula",
+    "class": "team"
+  },
+  "tracing": {
+    "enabled": false,
+    "provider": "langsmith",
+    "project": null,
+    "apiKeyEnv": "LANGSMITH_API_KEY",
+    "endpoint": null,
+    "metadata": {}
+  }
+}
