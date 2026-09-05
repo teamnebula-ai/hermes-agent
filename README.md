@@ -131,7 +131,7 @@ All documentation lives at **[hermes-agent.nousresearch.com/docs](https://hermes
 | [CLI Usage](https://hermes-agent.nousresearch.com/docs/user-guide/cli)                              | Commands, keybindings, personalities, sessions             |
 | [Configuration](https://hermes-agent.nousresearch.com/docs/user-guide/configuration)                | Config file, providers, models, all options                |
 | [Messaging Gateway](https://hermes-agent.nousresearch.com/docs/user-guide/messaging)                | Telegram, Discord, Slack, WhatsApp, Signal, Home Assistant |
-| [Security](https://hermes-agent.nousresearch.com/docs/user-guide/security)                          | Command approval, DM pairing, container isolation          |
+| [Security](https://hermes-agent.nousresearch.com/docs/user-guide/security)                          | Command approval, DM pairing, container isolation, sensitive-path file guard |
 | [Tools & Toolsets](https://hermes-agent.nousresearch.com/docs/user-guide/features/tools)            | 40+ tools, toolset system, terminal backends               |
 | [Skills System](https://hermes-agent.nousresearch.com/docs/user-guide/features/skills)              | Procedural memory, Skills Hub, creating skills             |
 | [Memory](https://hermes-agent.nousresearch.com/docs/user-guide/features/memory)                     | Persistent memory, user profiles, best practices           |
@@ -142,6 +142,18 @@ All documentation lives at **[hermes-agent.nousresearch.com/docs](https://hermes
 | [Contributing](https://hermes-agent.nousresearch.com/docs/developer-guide/contributing)             | Development setup, PR process, code style                  |
 | [CLI Reference](https://hermes-agent.nousresearch.com/docs/reference/cli-commands)                  | All commands and flags                                     |
 | [Environment Variables](https://hermes-agent.nousresearch.com/docs/reference/environment-variables) | Complete env var reference                                 |
+
+### Writing files under a temp directory
+
+`write_file` refuses paths under system-sensitive prefixes. Temp directories are
+carved out of that check, because on macOS they live under `/private/var/`, which
+is itself a denied prefix — without the carve-out every temp-file write failed.
+
+The carve-out is decided on the **resolved** path only, never the unresolved one.
+A symlink is not an escape hatch: `ln -s /etc/passwd /tmp/x` followed by
+`write_file("/tmp/x", …)` resolves to `/etc/passwd`, matches the deny list, and is
+refused. Matching the lexical path as well would have let the symlink through,
+since `/tmp/x` looks like an ordinary temp write.
 
 ---
 

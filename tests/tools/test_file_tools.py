@@ -5,7 +5,9 @@ handling without requiring a running terminal environment.
 """
 
 import json
+import os
 import logging
+import pytest
 from unittest.mock import MagicMock, patch
 
 from tools.file_tools import (
@@ -77,7 +79,12 @@ class TestWriteFileHandler:
         from tools.file_tools import write_file_tool
         result = json.loads(write_file_tool("/tmp/out.txt", "hello world!\n"))
         assert result["status"] == "ok"
-        mock_ops.write_file.assert_called_once_with("/tmp/out.txt", "hello world!\n")
+        # write/patch canonicalise the path before the sensitive-path check, so the
+        # underlying op sees the resolved form. On macOS /tmp is a symlink to
+        # /private/tmp, so a literal comparison only passes on Linux.
+        mock_ops.write_file.assert_called_once_with(
+            os.path.realpath("/tmp/out.txt"), "hello world!\n"
+        )
 
     @patch("tools.file_tools._get_file_ops")
     def test_permission_error_returns_error_json_without_error_log(self, mock_get, caplog):
@@ -155,7 +162,12 @@ class TestPatchHandler:
             old_string="foo", new_string="bar"
         ))
         assert result["status"] == "ok"
-        mock_ops.patch_replace.assert_called_once_with("/tmp/f.py", "foo", "bar", False)
+        # write/patch canonicalise the path before the sensitive-path check, so the
+        # underlying op sees the resolved form. On macOS /tmp is a symlink to
+        # /private/tmp, so a literal comparison only passes on Linux.
+        mock_ops.patch_replace.assert_called_once_with(
+            os.path.realpath("/tmp/f.py"), "foo", "bar", False
+        )
 
     @patch("tools.file_tools._get_file_ops")
     def test_replace_mode_replace_all_flag(self, mock_get):
@@ -168,7 +180,12 @@ class TestPatchHandler:
         from tools.file_tools import patch_tool
         patch_tool(mode="replace", path="/tmp/f.py",
                    old_string="x", new_string="y", replace_all=True)
-        mock_ops.patch_replace.assert_called_once_with("/tmp/f.py", "x", "y", True)
+        # write/patch canonicalise the path before the sensitive-path check, so the
+        # underlying op sees the resolved form. On macOS /tmp is a symlink to
+        # /private/tmp, so a literal comparison only passes on Linux.
+        mock_ops.patch_replace.assert_called_once_with(
+            os.path.realpath("/tmp/f.py"), "x", "y", True
+        )
 
     @patch("tools.file_tools._get_file_ops")
     def test_replace_mode_missing_path_errors(self, mock_get):
@@ -486,3 +503,51 @@ class TestPatchSchemaShape:
         params = PATCH_SCHEMA["parameters"]
         assert params["required"] == ["mode"]
         assert "anyOf" not in params and "oneOf" not in params
+
+
+class TestTempDirNotSensitive:
+    """The macOS temp directory sits under a denied prefix but is not system state.
+
+    ``/private/var/`` is denied to protect macOS system state. macOS also puts the
+    per-user temp directory there — ``$TMPDIR`` is ``/var/folders/<hash>/T/`` and
+    ``/var`` symlinks to ``/private/var`` — so before the carve-out, ``write_file``
+    refused to write ANY temp file on macOS. Every test using ``tmp_path`` hit it.
+
+    These pin both halves: temp is writable, and the rest of ``/private/var/`` is not.
+    """
+
+    def test_system_temp_dir_is_writable(self):
+        import tempfile
+        from tools.file_tools import _check_sensitive_path
+
+        target = os.path.join(tempfile.gettempdir(), "scratch.txt")
+        assert _check_sensitive_path(target) is None
+
+    def test_tmp_is_writable(self):
+        from tools.file_tools import _check_sensitive_path
+
+        assert _check_sensitive_path("/tmp/scratch.txt") is None
+
+    def test_pytest_tmp_path_is_writable(self, tmp_path):
+        """The fixture the rest of the suite depends on."""
+        from tools.file_tools import _check_sensitive_path
+
+        assert _check_sensitive_path(str(tmp_path / "f.txt")) is None
+
+    @pytest.mark.parametrize(
+        "path",
+        [
+            "/private/var/db/secret",
+            "/private/var/root/.ssh/id_rsa",
+            "/etc/passwd",
+            "/private/etc/hosts",
+            "/boot/grub.cfg",
+            "/usr/lib/systemd/evil.service",
+            "/var/run/docker.sock",
+        ],
+    )
+    def test_system_paths_still_refused(self, path):
+        """The carve-out must not widen into the rest of the deny list."""
+        from tools.file_tools import _check_sensitive_path
+
+        assert _check_sensitive_path(path) is not None
