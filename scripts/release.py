@@ -1484,6 +1484,9 @@ AUTHOR_MAP = {
     "leonard@sellem.me": "leonardsellem",  # PR #37405 (desktop WS origin guard on remote/Tailscale binds)
     "42903577+ohMyJason@users.noreply.github.com": "ohMyJason",  # PR #29810 (discover_models in custom_providers section 4)
     "singhsanidhya741@gmail.com": "sanidhyasin",  # PR #40403 salvage (model.default_headers for custom OpenAI-compatible providers, #40033)
+    # Both casings appear in this fork's history; the check compares exact strings.
+    "shawn.reddy1@gmail.com": "Screddyice",
+    "Shawn.reddy1@gmail.com": "Screddyice",
 }
 
 

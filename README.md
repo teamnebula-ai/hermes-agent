@@ -179,6 +179,8 @@ See `hermes claw migrate --help` for all options, or use the `openclaw-migration
 
 We welcome contributions! See the [Contributing Guide](https://hermes-agent.nousresearch.com/docs/developer-guide/contributing) for development setup, code style, and PR process.
 
+**The `check-attribution` CI gate fails on any commit whose author email is not in `AUTHOR_MAP` in `scripts/release.py`.** GitHub `<id>+<user>@users.noreply.github.com` addresses resolve on their own; anything else needs a mapping, and the comparison is an exact string, so a differently-cased email is a different email. On 2026-09-03 six open PRs in this fork were red on that gate for one unmapped Gmail address in two casings.
+
 Quick start for contributors — clone and go with `setup-hermes.sh`:
 
 ```bash
