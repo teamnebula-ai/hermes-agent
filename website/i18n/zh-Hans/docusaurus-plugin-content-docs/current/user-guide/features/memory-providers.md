@@ -1,7 +1,7 @@
 ---
 sidebar_position: 4
 title: "Memory Providers"
-description: "外部记忆提供者插件 — Honcho、OpenViking、Mem0、Hindsight、Holographic、RetainDB、ByteRover、Supermemory"
+description: "外部记忆提供者插件 — Honcho、OpenViking、Hindsight、Holographic、RetainDB、ByteRover、Supermemory"
 ---
 
 # Memory Providers
@@ -22,7 +22,7 @@ hermes memory off        # 禁用外部提供者
 
 ```yaml
 memory:
-  provider: openviking   # 或 honcho, mem0, hindsight, holographic, retaindb, byterover, supermemory
+  provider: openviking   # 或 honcho, hindsight, holographic, retaindb, byterover, supermemory
 ```
 
 ## 工作原理
@@ -293,36 +293,6 @@ echo "OPENVIKING_ENDPOINT=http://localhost:1933" >> ~/.hermes/.env
 
 ---
 
-### Mem0
-
-服务端 LLM 事实提取，具备语义搜索、重排序和自动去重功能。
-
-| | |
-|---|---|
-| **适合场景** | 免维护的记忆管理——Mem0 自动处理提取 |
-| **依赖** | `pip install mem0ai` + API key |
-| **数据存储** | Mem0 Cloud |
-| **费用** | Mem0 定价 |
-
-**工具：** `mem0_profile`（所有已存储记忆）、`mem0_search`（语义搜索 + 重排序）、`mem0_conclude`（逐字存储事实）
-
-**安装：**
-```bash
-hermes memory setup    # 选择 "mem0"
-# 或手动配置：
-hermes config set memory.provider mem0
-echo "MEM0_API_KEY=your-key" >> ~/.hermes/.env
-```
-
-**配置：** `$HERMES_HOME/mem0.json`
-
-| 键 | 默认值 | 描述 |
-|-----|---------|-------------|
-| `user_id` | `hermes-user` | 用户标识符 |
-| `agent_id` | `hermes` | Agent 标识符 |
-
----
-
 ### Hindsight
 
 具备知识图谱、实体解析和多策略检索的长期记忆。`hindsight_reflect` 工具提供其他提供者均不具备的跨记忆合成能力。自动保留完整对话轮次（包括工具调用），并进行会话级文档追踪。
@@ -528,7 +498,6 @@ echo 'SUPERMEMORY_API_KEY=***' >> ~/.hermes/.env
 |----------|---------|------|-------|-------------|----------------|
 | **Honcho** | 云端 | 付费 | 5 | `honcho-ai` | 辩证用户建模 + 会话范围上下文 |
 | **OpenViking** | 自托管 | 免费 | 5 | `openviking` + 服务器 | 文件系统层级 + 分层加载 |
-| **Mem0** | 云端 | 付费 | 3 | `mem0ai` | 服务端 LLM 提取 |
 | **Hindsight** | 云端/本地 | 免费/付费 | 3 | `hindsight-client` | 知识图谱 + reflect 合成 |
 | **Holographic** | 本地 | 免费 | 2 | 无 | HRR 代数 + 信任评分 |
 | **RetainDB** | 云端 | $20/月 | 5 | `requests` | 增量压缩 |
@@ -540,7 +509,7 @@ echo 'SUPERMEMORY_API_KEY=***' >> ~/.hermes/.env
 每个提供者的数据按 [profile](/user-guide/profiles) 隔离：
 
 - **本地存储提供者**（Holographic、ByteRover）使用 `$HERMES_HOME/` 路径，各 profile 路径不同
-- **配置文件提供者**（Honcho、Mem0、Hindsight、Supermemory）将配置存储在 `$HERMES_HOME/` 中，每个 profile 拥有独立凭证
+- **配置文件提供者**（Honcho、Hindsight、Supermemory）将配置存储在 `$HERMES_HOME/` 中，每个 profile 拥有独立凭证
 - **云端提供者**（RetainDB）自动派生 profile 范围的项目名称
 - **环境变量提供者**（OpenViking）通过每个 profile 的 `.env` 文件配置
 
