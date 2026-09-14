@@ -199,3 +199,30 @@ def test_concurrent_compressions_same_session_serialize(tmp_path: Path) -> None:
         "Compression lock leaked: still held on the parent session_id after both "
         "threads joined. Future compression on the child session would deadlock."
     )
+
+
+def test_stale_agent_cannot_compress_parent_after_winner_releases(tmp_path: Path) -> None:
+    """A stale agent must not rotate a parent that compression already ended.
+
+    Thread scheduling can delay the second agent until after the first agent
+    releases the per-session lock. The ended parent row is the durable signal
+    that the second agent's snapshot is stale.
+    """
+    db = SessionDB(db_path=tmp_path / "state.db")
+    shared_sid = "SHARED_SESSION_STALE_AGENT"
+    db.create_session(shared_sid, source="discord")
+
+    winner = _build_agent_with_db(db, shared_sid)
+    stale = _build_agent_with_db(db, shared_sid)
+
+    winner_result, _winner_sp = winner._compress_context(
+        _MESSAGES, "sys", approx_tokens=120_000
+    )
+    stale_result, _stale_sp = stale._compress_context(
+        _MESSAGES, "sys", approx_tokens=120_000
+    )
+
+    assert len(winner_result) < len(_MESSAGES)
+    assert stale_result == _MESSAGES
+    assert stale.session_id == shared_sid
+    stale.context_compressor.compress.assert_not_called()

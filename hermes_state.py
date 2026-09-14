@@ -1059,6 +1059,23 @@ class SessionDB:
         expires_at = now + ttl_seconds
 
         def _do(conn):
+            # A contender can reach this transaction after the original
+            # compressor has rotated and released its lock.  The stale agent
+            # still carries the parent session_id, so reject that snapshot
+            # once the durable session row says compression already ended it.
+            session = conn.execute(
+                "SELECT ended_at FROM sessions WHERE id = ?",
+                (session_id,),
+            ).fetchone()
+            if session is not None:
+                ended_at = (
+                    session["ended_at"]
+                    if isinstance(session, sqlite3.Row)
+                    else session[0]
+                )
+                if ended_at is not None:
+                    return False
+
             # First: reclaim any expired lock for this session_id.
             conn.execute(
                 "DELETE FROM compression_locks "
