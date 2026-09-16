@@ -821,10 +821,12 @@ def test_oneshot_distinguishes_disabled_mcp_from_unknown(monkeypatch, capsys):
     assert "mcp-off" in err
 
 
-def test_oneshot_wires_session_db_for_recall(monkeypatch):
-    """hermes -z bypasses HermesCLI, but recall still needs SessionDB."""
-    from hermes_cli.oneshot import _run_agent
+def _install_fake_oneshot_runtime(monkeypatch, *, cli_toolsets=("session_search",)):
+    """Stub everything _run_agent imports so it builds a fake AIAgent.
 
+    Returns ``(captured, sentinel_db)``: ``captured`` receives the AIAgent
+    kwargs plus the prompt passed to ``chat``.
+    """
     captured = {}
     sentinel_db = object()
 
@@ -878,18 +880,58 @@ def test_oneshot_wires_session_db_for_recall(monkeypatch):
     monkeypatch.setitem(
         sys.modules,
         "hermes_cli.tools_config",
-        mod("hermes_cli.tools_config", _get_platform_tools=lambda *_args, **_kwargs: {"session_search"}),
+        mod("hermes_cli.tools_config", _get_platform_tools=lambda *_args, **_kwargs: set(cli_toolsets)),
     )
+    return captured, sentinel_db
+
+
+def test_oneshot_wires_session_db_for_recall(monkeypatch):
+    """hermes -z bypasses HermesCLI, but recall still needs SessionDB."""
+    from hermes_cli.oneshot import _run_agent
+
+    captured, sentinel_db = _install_fake_oneshot_runtime(monkeypatch)
 
     assert _run_agent("recall this") == "ok"
     assert captured["session_db"] is sentinel_db
     assert captured["enabled_toolsets"] == ["session_search"]
     assert captured["prompt"] == "recall this"
 
-    captured.clear()
-    assert _run_agent("review this", toolsets=[], use_config_toolsets=False) == "ok"
-    assert captured["enabled_toolsets"] == []
+
+@pytest.mark.parametrize(
+    ("toolsets", "use_config_toolsets", "expected"),
+    [
+        # No -t: the toolsets the profile enables for "cli", sorted.
+        (None, True, ["session_search", "web"]),
+        # -t all: unrestricted, so AIAgent loads every toolset.
+        (None, False, None),
+        # -t none: an explicit zero-tool boundary.
+        ([], False, []),
+        # -t web,terminal: exactly those, in the order given.
+        (["web", "terminal"], False, ["web", "terminal"]),
+    ],
+    ids=["configured", "all", "none", "explicit"],
+)
+def test_oneshot_run_agent_toolset_tristate(monkeypatch, toolsets, use_config_toolsets, expected):
+    from hermes_cli.oneshot import _run_agent
+
+    captured, _ = _install_fake_oneshot_runtime(monkeypatch, cli_toolsets=("web", "session_search"))
+
+    assert _run_agent("review this", toolsets=toolsets, use_config_toolsets=use_config_toolsets) == "ok"
+    assert captured["enabled_toolsets"] == expected
     assert captured["prompt"] == "review this"
+
+
+@pytest.mark.parametrize(("flag", "expected"), [("all", None), ("none", [])])
+def test_oneshot_all_and_none_reach_the_agent_distinctly(monkeypatch, capsys, flag, expected):
+    """`-t all` must not collapse into `-t none` between run_oneshot and AIAgent."""
+    _stub_plugin_discovery(monkeypatch)
+    from hermes_cli.oneshot import run_oneshot
+
+    captured, _ = _install_fake_oneshot_runtime(monkeypatch)
+
+    assert run_oneshot("hello", toolsets=flag) == 0
+    assert captured["enabled_toolsets"] == expected
+    assert capsys.readouterr().out == "ok\n"
 
 
 def test_launch_tui_exports_model_provider_and_toolsets(monkeypatch, main_mod):
