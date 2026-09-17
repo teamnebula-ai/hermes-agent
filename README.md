@@ -104,6 +104,18 @@ hermes update       # Update to the latest version
 hermes doctor       # Diagnose any issues
 ```
 
+For scripted model calls that must never invoke tools, use the explicit
+no-tools boundary. This overrides the toolsets saved in your CLI profile:
+
+```bash
+hermes -t none -z "Classify this text and return JSON only."
+```
+
+`-t` for one-shot calls has three distinct modes: leave it out to use the toolsets
+your profile enables for the CLI, pass `-t none` for zero tools, or pass `-t all`
+to load every toolset regardless of profile. `none` cannot be combined with other
+toolsets.
+
 📖 **[Full documentation →](https://hermes-agent.nousresearch.com/docs/)**
 
 ---
