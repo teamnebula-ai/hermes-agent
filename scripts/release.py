@@ -1485,6 +1485,10 @@ AUTHOR_MAP = {
     "leonard@sellem.me": "leonardsellem",  # PR #37405 (desktop WS origin guard on remote/Tailscale binds)
     "42903577+ohMyJason@users.noreply.github.com": "ohMyJason",  # PR #29810 (discover_models in custom_providers section 4)
     "singhsanidhya741@gmail.com": "sanidhyasin",  # PR #40403 salvage (model.default_headers for custom OpenAI-compatible providers, #40033)
+    # teamnebula-ai fork authors. check-attribution matches exact strings, so both casings are listed.
+    "shawn.reddy1@gmail.com": "Screddyice",
+    "Shawn.reddy1@gmail.com": "Screddyice",
+    "tm-nebby[bot]@users.noreply.github.com": "tm-nebby[bot]",  # Nebby GitHub App; no numeric id, so the noreply rule misses it
 }
 
 
