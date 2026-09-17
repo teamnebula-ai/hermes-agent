@@ -2538,7 +2538,15 @@ def run_conversation(
                         provider=agent.provider,
                         base_url=getattr(agent, "base_url", None),
                     )
-                    if not pool_may_recover:
+                    # A chain entry on the same provider+base_url is a second
+                    # model on the SAME credential, not a provider failover —
+                    # a same-credential model hop.  Take it BEFORE the pool
+                    # rotates: rotation moves to another account, and such a
+                    # model (gpt-5.3-codex-spark) is entitled on only one of
+                    # them.  restore_primary_model_for_rotation() puts the
+                    # primary model back before any later rotation.
+                    same_credential_hop = _ra()._next_fallback_is_same_credential(agent)
+                    if (not pool_may_recover) or same_credential_hop:
                         if classified.reason == FailoverReason.billing:
                             agent._buffer_status(
                                 "⚠️ Billing or credits exhausted — switching to fallback provider..."
