@@ -179,6 +179,8 @@ See `hermes claw migrate --help` for all options, or use the `openclaw-migration
 
 We welcome contributions! See the [Contributing Guide](https://hermes-agent.nousresearch.com/docs/developer-guide/contributing) for development setup, code style, and PR process.
 
+**Fork note on the `check-attribution` gate.** The Contributor Attribution Check fails a PR when a commit's author email is missing from `AUTHOR_MAP` in `scripts/release.py`. It greps the file for the exact quoted email, so casing counts. It skips `<id>+<user>@users.noreply.github.com` addresses, but the Nebby app commits as `tm-nebby[bot]@users.noreply.github.com` with no id prefix. The last entries in `AUTHOR_MAP` cover this fork's authors: Shawn's Gmail address in both casings (`Screddyice`) and the Nebby app (`tm-nebby[bot]`), and `tests/scripts/test_release_author_map.py` pins them. The job reads the map from the PR's merge ref, so an open PR picks up a new entry only after you push to it or update its branch.
+
 Quick start for contributors — clone and go with `setup-hermes.sh`:
 
 ```bash
