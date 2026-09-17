@@ -1,5 +1,7 @@
 """Tests for gateway.display_config — per-platform display/verbosity resolver."""
 
+import logging
+
 
 # ---------------------------------------------------------------------------
 # Resolver: resolution order
@@ -77,6 +79,38 @@ class TestResolveDisplaySetting:
         }
         assert resolve_display_setting(config, "slack", "tool_progress") == "off"
         assert resolve_display_setting(config, "telegram", "tool_progress") == "all"
+
+    def test_bare_global_override_cannot_shadow_no_edit_platform_default(self):
+        """A bare global display.tool_progress must not beat the safe 'off'
+        default of a platform that can't edit posted messages (e.g. Slack) —
+        raw exec/apply_patch transcripts would otherwise post permanently
+        into a customer-facing channel (hermes-agent#14663)."""
+        from gateway.display_config import resolve_display_setting
+
+        config = {"display": {"tool_progress": "all"}}
+        assert resolve_display_setting(config, "slack", "tool_progress") == "off"
+
+    def test_explicit_per_platform_pin_still_opts_no_edit_platform_in(self):
+        """An explicit display.platforms.<plat>.tool_progress pin still wins
+        for no-edit platforms — only the bare global setting is blocked."""
+        from gateway.display_config import resolve_display_setting
+
+        config = {
+            "display": {
+                "tool_progress": "all",
+                "platforms": {"slack": {"tool_progress": "all"}},
+            }
+        }
+        assert resolve_display_setting(config, "slack", "tool_progress") == "all"
+
+    def test_bare_global_override_still_applies_to_editable_platforms(self):
+        """Telegram supports in-place edits, so its quiet-by-default 'off'
+        is a UX choice, not a leak-prevention default — a bare global
+        override should still apply there."""
+        from gateway.display_config import resolve_display_setting
+
+        config = {"display": {"tool_progress": "new"}}
+        assert resolve_display_setting(config, "telegram", "tool_progress") == "new"
 
 
 # ---------------------------------------------------------------------------
@@ -436,3 +470,87 @@ class TestCleanupProgress:
                 }
             }
             assert resolve_display_setting(config, "telegram", "cleanup_progress") is True, val
+
+
+# ---------------------------------------------------------------------------
+# warn_shadowed_tool_progress_defaults — surfaces silent Slack-spam footgun
+# ---------------------------------------------------------------------------
+
+class TestWarnShadowedToolProgressDefaults:
+    """A global tool_progress override can silently shadow a platform's
+    safe 'off' default (e.g. Slack) with no per-platform pin, spamming a
+    permanent message per tool call (hermes-agent#14663). This should be
+    logged, not silent."""
+
+    def test_warns_when_global_override_shadows_slack_default(self, caplog):
+        from gateway.display_config import warn_shadowed_tool_progress_defaults
+
+        config = {"display": {"tool_progress": "all"}}
+        with caplog.at_level(logging.WARNING, logger="gateway.display_config"):
+            warn_shadowed_tool_progress_defaults(config, ["slack"])
+        assert any("slack" in rec.message for rec in caplog.records)
+        assert any("tool_progress" in rec.message for rec in caplog.records)
+
+    def test_no_warning_when_platform_override_present(self, caplog):
+        """A per-platform pin (display.platforms.slack.tool_progress) silences it."""
+        from gateway.display_config import warn_shadowed_tool_progress_defaults
+
+        config = {
+            "display": {
+                "tool_progress": "all",
+                "platforms": {"slack": {"tool_progress": "off"}},
+            }
+        }
+        with caplog.at_level(logging.WARNING, logger="gateway.display_config"):
+            warn_shadowed_tool_progress_defaults(config, ["slack"])
+        assert caplog.records == []
+
+    def test_no_warning_when_legacy_override_present(self, caplog):
+        """The deprecated tool_progress_overrides fallback also silences it."""
+        from gateway.display_config import warn_shadowed_tool_progress_defaults
+
+        config = {
+            "display": {
+                "tool_progress": "all",
+                "tool_progress_overrides": {"slack": "off"},
+            }
+        }
+        with caplog.at_level(logging.WARNING, logger="gateway.display_config"):
+            warn_shadowed_tool_progress_defaults(config, ["slack"])
+        assert caplog.records == []
+
+    def test_no_warning_when_no_global_override_set(self, caplog):
+        """No explicit display.tool_progress means the platform default (already
+        safe) is what applies — nothing to warn about."""
+        from gateway.display_config import warn_shadowed_tool_progress_defaults
+
+        with caplog.at_level(logging.WARNING, logger="gateway.display_config"):
+            warn_shadowed_tool_progress_defaults({}, ["slack"])
+        assert caplog.records == []
+
+    def test_no_warning_for_platform_whose_default_is_already_verbose(self, caplog):
+        """Discord defaults to 'all' already — a global 'all' override isn't shadowing anything."""
+        from gateway.display_config import warn_shadowed_tool_progress_defaults
+
+        config = {"display": {"tool_progress": "all"}}
+        with caplog.at_level(logging.WARNING, logger="gateway.display_config"):
+            warn_shadowed_tool_progress_defaults(config, ["discord"])
+        assert caplog.records == []
+
+    def test_no_warning_when_global_override_is_also_off(self, caplog):
+        """Global override matching the safe default isn't a problem."""
+        from gateway.display_config import warn_shadowed_tool_progress_defaults
+
+        config = {"display": {"tool_progress": "off"}}
+        with caplog.at_level(logging.WARNING, logger="gateway.display_config"):
+            warn_shadowed_tool_progress_defaults(config, ["slack"])
+        assert caplog.records == []
+
+    def test_only_warns_for_connected_platforms(self, caplog):
+        """Platforms not in the connected list are not checked."""
+        from gateway.display_config import warn_shadowed_tool_progress_defaults
+
+        config = {"display": {"tool_progress": "all"}}
+        with caplog.at_level(logging.WARNING, logger="gateway.display_config"):
+            warn_shadowed_tool_progress_defaults(config, ["discord"])
+        assert not any("slack" in rec.message for rec in caplog.records)
