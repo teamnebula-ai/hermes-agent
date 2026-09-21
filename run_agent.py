@@ -265,6 +265,44 @@ def _pool_may_recover_from_rate_limit(
     return len(pool.entries()) > 1
 
 
+def _next_fallback_is_same_credential(agent) -> bool:
+    """True when the next fallback entry is a model swap on the CURRENT credential.
+
+    A ``fallback_providers`` entry whose provider and base_url match the live
+    runtime is not a provider failover at all — it is a second model on the
+    SAME account.  Our case: ``gpt-5.5`` -> ``gpt-5.3-codex-spark`` on the same
+    ChatGPT credential.
+
+    These hops have to be tried BEFORE the credential pool rotates.  Rotation
+    moves to a different ChatGPT account, and a model like gpt-5.3-codex-spark
+    is entitled on only one of them (the others answer HTTP 400 "not supported
+    when using Codex with a ChatGPT account").  Letting rotation win would mean
+    the hop is never reached on the one account that can serve it.
+
+    Cross-provider entries are deliberately excluded: those stay behind pool
+    rotation so every account is spent before leaving the provider.
+    """
+    try:
+        idx = int(getattr(agent, "_fallback_index", 0) or 0)
+        chain = getattr(agent, "_fallback_chain", None) or []
+        if idx >= len(chain):
+            return False
+        entry = chain[idx] or {}
+        entry_provider = str(entry.get("provider") or "").strip().lower()
+        current_provider = str(getattr(agent, "provider", "") or "").strip().lower()
+        if not entry_provider or entry_provider != current_provider:
+            return False
+        entry_base = str(entry.get("base_url") or "").strip().rstrip("/").lower()
+        current_base = str(getattr(agent, "base_url", "") or "").strip().rstrip("/").lower()
+        if entry_base and current_base and entry_base != current_base:
+            return False
+        entry_model = str(entry.get("model") or "").strip().lower()
+        current_model = str(getattr(agent, "model", "") or "").strip().lower()
+        return bool(entry_model) and entry_model != current_model
+    except Exception:
+        return False
+
+
 def _qwen_portal_headers() -> dict:
     """Return default HTTP headers required by Qwen Portal API."""
     import platform as _plat

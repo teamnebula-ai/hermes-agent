@@ -46,6 +46,9 @@ must not collide across profiles running at the same time.
 | Area | Change | Why |
 | --- | --- | --- |
 | External memory sync | `run_agent.py` flattens multimodal `content` part lists to text before handing them to memory providers, recording attachments as an `[N image(s)]` marker | Providers feed these values into text APIs. Mem0 v3 rejects a list at `POST /v3/memories/add/` with `Not a valid string.`, which silently dropped every multimodal turn from long-term memory instead of storing it. Affected any profile whose worker submits media, including image-evidence agents. |
+| Quota failover ordering | A `fallback_providers` entry on the same provider and `base_url` as the primary is treated as a *same-credential model hop* and taken **before** credential-pool rotation (`_next_fallback_is_same_credential` in `run_agent.py`). The primary model is restored before any rotation (`restore_primary_model_for_rotation` in `agent/agent_runtime_helpers.py`), so each rotated-to credential is tried with the primary model. | Upstream always lets pool rotation win, so a second model on the *same* account is only reached after every credential is spent. That matters when the second model is entitled on one account only: `gpt-5.3-codex-spark` answers HTTP 400 `not supported when using Codex with a ChatGPT account` on plans without the entitlement, so rotating while it was active skipped the remaining ChatGPT accounts and jumped straight to the cross-provider fallback. Configured order is now: primary model on the primary account, spark on that same account, the primary model on each additional ChatGPT account, then Anthropic last. |
+
+Both divergences carry fork-only tests: `tests/run_agent/test_memory_sync_multimodal.py` for the memory flattening, and `tests/run_agent/test_same_credential_model_hop.py` for hop detection, the primary-model restore before rotation, and the chain index that keeps a spent hop from running again. Run them with `scripts/run_tests.sh <path>`.
 
 Operational context for these deployments lives in
 [`teamnebula-ai/hermes-infra`](https://github.com/teamnebula-ai/hermes-infra).
@@ -142,6 +145,8 @@ Hermes has two entry points: start the terminal UI with `hermes`, or run the gat
 
 For the full command lists, see the [CLI guide](https://hermes-agent.nousresearch.com/docs/user-guide/cli) and the [Messaging Gateway guide](https://hermes-agent.nousresearch.com/docs/user-guide/messaging).
 
+> **Tool-progress verbosity is per-platform-aware.** Platforms whose messages can't be edited in place (Slack, Signal, email, ...) default `display.tool_progress` to `off` so a busy turn doesn't spam one permanent message per tool call. A global `display.tool_progress` in `config.yaml` can't silently override that safe default on those platforms — only an explicit `display.platforms.<name>.tool_progress` pin can turn verbose mode back on for them — and the gateway logs a startup warning naming any platform where the global setting is being ignored this way.
+
 ---
 
 ## Documentation
@@ -154,7 +159,7 @@ All documentation lives at **[hermes-agent.nousresearch.com/docs](https://hermes
 | [CLI Usage](https://hermes-agent.nousresearch.com/docs/user-guide/cli)                              | Commands, keybindings, personalities, sessions             |
 | [Configuration](https://hermes-agent.nousresearch.com/docs/user-guide/configuration)                | Config file, providers, models, all options                |
 | [Messaging Gateway](https://hermes-agent.nousresearch.com/docs/user-guide/messaging)                | Telegram, Discord, Slack, WhatsApp, Signal, Home Assistant |
-| [Security](https://hermes-agent.nousresearch.com/docs/user-guide/security)                          | Command approval, DM pairing, container isolation          |
+| [Security](https://hermes-agent.nousresearch.com/docs/user-guide/security)                          | Command approval, DM pairing, container isolation, sensitive-path file guard |
 | [Tools & Toolsets](https://hermes-agent.nousresearch.com/docs/user-guide/features/tools)            | 40+ tools, toolset system, terminal backends               |
 | [Skills System](https://hermes-agent.nousresearch.com/docs/user-guide/features/skills)              | Procedural memory, Skills Hub, creating skills             |
 | [Memory](https://hermes-agent.nousresearch.com/docs/user-guide/features/memory)                     | Persistent memory, user profiles, best practices           |
@@ -165,6 +170,18 @@ All documentation lives at **[hermes-agent.nousresearch.com/docs](https://hermes
 | [Contributing](https://hermes-agent.nousresearch.com/docs/developer-guide/contributing)             | Development setup, PR process, code style                  |
 | [CLI Reference](https://hermes-agent.nousresearch.com/docs/reference/cli-commands)                  | All commands and flags                                     |
 | [Environment Variables](https://hermes-agent.nousresearch.com/docs/reference/environment-variables) | Complete env var reference                                 |
+
+### Writing files under a temp directory
+
+`write_file` refuses paths under system-sensitive prefixes. Temp directories are
+carved out of that check, because on macOS they live under `/private/var/`, which
+is itself a denied prefix — without the carve-out every temp-file write failed.
+
+The carve-out is decided on the **resolved** path only, never the unresolved one.
+A symlink is not an escape hatch: `ln -s /etc/passwd /tmp/x` followed by
+`write_file("/tmp/x", …)` resolves to `/etc/passwd`, matches the deny list, and is
+refused. Matching the lexical path as well would have let the symlink through,
+since `/tmp/x` looks like an ordinary temp write.
 
 ---
 
