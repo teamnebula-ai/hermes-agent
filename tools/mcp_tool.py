@@ -357,7 +357,10 @@ _MCP_INJECTION_PATTERNS = [
      "network command in description"),
     (re.compile(r"base64\.(b64decode|decodebytes)", re.I),
      "base64 decode reference"),
-    (re.compile(r"exec\s*\(|eval\s*\(", re.I),
+    # \b matters: without it this matches the tail of ordinary words. "For
+    # pure retrieval (returning the matching observations)" contains
+    # "eval (" and was reported as a code execution reference.
+    (re.compile(r"\bexec\s*\(|\beval\s*\(", re.I),
      "code execution reference"),
     (re.compile(r"import\s+(subprocess|os|shutil|socket)", re.I),
      "dangerous import reference"),
