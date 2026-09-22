@@ -28,6 +28,7 @@ import uuid
 from dataclasses import dataclass
 from typing import Any, Dict, List, Optional
 
+from agent.codex_responses_adapter import _summarize_user_message_for_log
 from agent.iteration_budget import IterationBudget
 from agent.model_metadata import estimate_request_tokens_rough
 
@@ -359,7 +360,7 @@ def build_turn_context(
     # Notify memory providers of the new turn (BEFORE prefetch_all).
     if agent._memory_manager:
         try:
-            _turn_msg = original_user_message if isinstance(original_user_message, str) else ""
+            _turn_msg = _summarize_user_message_for_log(original_user_message)
             agent._memory_manager.on_turn_start(agent._user_turn_count, _turn_msg)
         except Exception:
             pass
@@ -368,7 +369,7 @@ def build_turn_context(
     ext_prefetch_cache = ""
     if agent._memory_manager:
         try:
-            _query = original_user_message if isinstance(original_user_message, str) else ""
+            _query = _summarize_user_message_for_log(original_user_message)
             ext_prefetch_cache = agent._memory_manager.prefetch_all(_query) or ""
         except Exception:
             pass
