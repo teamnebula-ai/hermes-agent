@@ -50,6 +50,8 @@ must not collide across profiles running at the same time.
 
 Both divergences carry fork-only tests: `tests/run_agent/test_memory_sync_multimodal.py` for the memory flattening, and `tests/run_agent/test_same_credential_model_hop.py` for hop detection, the primary-model restore before rotation, and the chain index that keeps a spent hop from running again. Run them with `scripts/run_tests.sh <path>`.
 
+| MCP description scanner | `tools/mcp_tool.py` adds word boundaries to the code-execution rule in `_MCP_INJECTION_PATTERNS`, with first test coverage for the scanner in `tests/tools/test_mcp_description_scan.py` | The rule had no boundary, so it matched the tail of ordinary words: any tool description containing "retrieval (" was logged as a code execution reference. The scan is WARNING-level and never blocks a tool, so the cost was log noise, but a security warning that fires on the word "retrieval" trains operators to ignore it. Candidate to send upstream, since it is not specific to this fork. |
+
 Operational context for these deployments lives in
 [`teamnebula-ai/hermes-infra`](https://github.com/teamnebula-ai/hermes-infra).
 
