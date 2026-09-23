@@ -55,6 +55,10 @@ Both divergences carry fork-only tests: `tests/run_agent/test_memory_sync_multim
 Operational context for these deployments lives in
 [`teamnebula-ai/hermes-infra`](https://github.com/teamnebula-ai/hermes-infra).
 
+### Team Nebula coding operator
+
+The Team Nebula Hermes coding operator owns `neb-ops-gcp`, uses authenticated `/usr/local/bin/gh` with HTTPS Git, and uses `sudo -n docker` when deployment access is authorized. It must verify tests, the pushed PR, authorized merge, deployed revision, and live behavior separately; a healthy process alone is not deployment or feature verification. Screddy can delegate coding tasks through the tracked `coding_fleet` tools. RS21 repositories are excluded.
+
 ---
 
 ## Quick Install
