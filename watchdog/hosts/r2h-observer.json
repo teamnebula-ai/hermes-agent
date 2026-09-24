@@ -1,0 +1,63 @@
+{
+  "host_label": "r2h-observer",
+  "bot_label": "both Hermes bots",
+  "mode": "observer",
+  "renotify_s": 86400,
+  "self_heal": {
+    "health_timer": "codex-observer.timer",
+    "check_service": "codex-observer.service",
+    "gateway_restart": false,
+    "maintenance_lock": "~/.watchdog-observer/SELF_HEAL_PAUSED",
+    "retry_s": 21600,
+    "peers": []
+  },
+  "subject": "Action needed: a Hermes watchdog has no live coverage",
+  "ticket_title": "Hermes watchdog uncovered — reported by r2h-observer",
+  "peers": [
+    {
+      "label": "src",
+      "bot_label": "@Screddy_bot",
+      "url": "http://100.70.49.54:8299/heartbeat",
+      "stale_after_s": 46800,
+      "covered_by": [
+        "neb-ops-gcp"
+      ]
+    },
+    {
+      "label": "neb-ops-gcp",
+      "bot_label": "@Teamnebula_bot",
+      "url": "http://100.74.25.61:8299/heartbeat",
+      "stale_after_s": 46800,
+      "covered_by": []
+    }
+  ],
+  "channels": {
+    "telegram": {
+      "chat_id": "6056863584",
+      "token_env": "TELEGRAM_BOT_TOKEN"
+    }
+  },
+  "runbook": [
+    "A Hermes watchdog has stopped reporting without another live peer that owns its alert.",
+    "",
+    "A lone dark neb-ops-gcp reaches this observer because src cannot watch Team Nebula.",
+    "A lone dark src stays quiet here while neb-ops-gcp is fresh because TMN owns that",
+    "alert. A combined outage also reaches this observer.",
+    "",
+    "Check, per box:",
+    "  ssh r2h-hermes 'systemctl --user list-timers | grep codex-health'",
+    "  ssh neb-ops-gcp 'systemctl --user list-timers | grep codex-health'",
+    "",
+    "Likely causes, in order: both boxes are genuinely off or unreachable; Tailscale",
+    "is down on this host so neither heartbeat resolves; or the heartbeat servers were",
+    "stopped without the checks being stopped."
+  ],
+  "context_note": [
+    "The independent R2H host runs this observer. neb-ops-gcp watches its heartbeat",
+    "in turn and can repair the observer's check timer over a dedicated SSH key.",
+    "",
+    "It checks no Hermes credential. It reads both Hermes heartbeats over the tailnet.",
+    "Telegram alerts use the R2H host's existing bot credential and the configured",
+    "private chat."
+  ]
+}

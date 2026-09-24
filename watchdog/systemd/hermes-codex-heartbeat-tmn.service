@@ -1,0 +1,13 @@
+[Unit]
+Description=Serve this host's watchdog heartbeat to its peer (tailnet only)
+After=network-online.target tailscaled.service
+Wants=network-online.target
+
+[Service]
+Type=simple
+ExecStart=/usr/bin/python3 %h/.hermes/codex-health/heartbeat_server.py --file %h/.hermes/codex-health/heartbeat.json --port 8299
+Restart=always
+RestartSec=30
+
+[Install]
+WantedBy=default.target

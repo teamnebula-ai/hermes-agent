@@ -1,0 +1,9 @@
+[Unit]
+Description=Codex keepalive - refresh Hermes openai-codex OAuth token for scheduled consumers
+After=network-online.target
+
+[Service]
+Type=oneshot
+Environment=STATE_DIR=/home/ubuntu/.hermes/codex-keepalive
+ExecStart=/home/ubuntu/managed-agents/codex-keepalive/codex-keepalive.sh
+TimeoutStartSec=180

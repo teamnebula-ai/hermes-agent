@@ -1,0 +1,11 @@
+[Unit]
+Description=Repair backstop Codex observer watchdog faults
+After=network-online.target tailscaled.service
+Wants=network-online.target
+OnFailure=codex-observer-self-heal-notify.service
+
+[Service]
+Type=oneshot
+EnvironmentFile=-%h/.watchdog-observer/.env
+ExecStart=/usr/bin/python3 %h/.watchdog-observer/self_heal.py
+TimeoutStartSec=180

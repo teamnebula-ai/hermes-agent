@@ -1,0 +1,8 @@
+[Unit]
+Description=Escalate over Telegram when the backstop observer cannot report
+
+[Service]
+Type=oneshot
+EnvironmentFile=-%h/.watchdog-observer/.env
+ExecStart=/usr/bin/python3 %h/.watchdog-observer/notify_failure.py --unit codex-observer.service
+TimeoutStartSec=120

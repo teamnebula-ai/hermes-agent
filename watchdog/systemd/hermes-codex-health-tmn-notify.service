@@ -1,0 +1,8 @@
+[Unit]
+Description=Escalate over Telegram when the Team Nebula Hermes codex check cannot report
+
+[Service]
+Type=oneshot
+EnvironmentFile=-%h/.hermes/.env
+ExecStart=/usr/bin/python3 %h/.hermes/codex-health/notify_failure.py --unit hermes-codex-health-tmn.service
+TimeoutStartSec=120

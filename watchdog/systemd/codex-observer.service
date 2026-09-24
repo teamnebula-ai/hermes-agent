@@ -1,0 +1,13 @@
+[Unit]
+Description=Backstop watch for Hermes watchdogs without live peer coverage
+After=network-online.target tailscaled.service
+Wants=network-online.target
+# Any non-zero exit means the observer could not report through its own
+# channel. Escalate over a transport that cannot fail the same way.
+OnFailure=codex-observer-notify.service
+
+[Service]
+Type=oneshot
+EnvironmentFile=-%h/.watchdog-observer/.env
+ExecStart=/usr/bin/python3 %h/.watchdog-observer/check.py
+TimeoutStartSec=300

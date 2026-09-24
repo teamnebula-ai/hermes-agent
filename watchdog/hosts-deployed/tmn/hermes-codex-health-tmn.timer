@@ -1,0 +1,12 @@
+[Unit]
+Description=Check every 3h that the Hermes tmn Codex sign-in still works
+
+[Timer]
+# 3h is the floor by request — no more frequent than this. Offset from
+# hostinger's check so the two boxes never alert in the same minute.
+OnCalendar=*-*-* 00,03,06,09,12,15,18,21:35:00
+RandomizedDelaySec=600
+Persistent=true
+
+[Install]
+WantedBy=timers.target

@@ -1,0 +1,13 @@
+[Unit]
+Description=Serve the backstop observer's heartbeat, so the ring watches it too
+After=network-online.target tailscaled.service
+Wants=network-online.target
+
+[Service]
+Type=simple
+ExecStart=/usr/bin/python3 %h/.watchdog-observer/heartbeat_server.py --file %h/.watchdog-observer/heartbeat.json --port 8299
+Restart=always
+RestartSec=30
+
+[Install]
+WantedBy=default.target

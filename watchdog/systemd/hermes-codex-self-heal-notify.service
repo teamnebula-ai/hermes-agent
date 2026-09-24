@@ -1,0 +1,8 @@
+[Unit]
+Description=Escalate when personal Hermes Codex self-healing fails
+
+[Service]
+Type=oneshot
+EnvironmentFile=-%h/.hermes/.env
+ExecStart=/usr/bin/python3 %h/.hermes/codex-health/notify_failure.py --unit hermes-codex-self-heal.service
+TimeoutStartSec=120

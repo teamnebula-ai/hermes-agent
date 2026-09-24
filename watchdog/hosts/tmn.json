@@ -1,0 +1,130 @@
+{
+  "host_label": "neb-ops-gcp",
+  "bot_label": "@Teamnebula_bot",
+  "hermes_home": "~/.hermes",
+  "gateway_unit": "hermes-gateway.service",
+  "self_heal": {
+    "health_timer": "hermes-codex-health-tmn.timer",
+    "check_service": "hermes-codex-health-tmn.service",
+    "gateway_restart": true,
+    "hermes_python": "/home/shawn_teamnebula_ai/.hermes/hermes-agent/venv/bin/python",
+    "hermes_version": "0.16.0",
+    "hermes_auth_module": "/home/shawn_teamnebula_ai/.hermes/hermes-agent/hermes_cli/auth.py",
+    "hermes_auth_sha256": "0e7be1c3e1e5c5c36e2b8f118ff51acb573d4a12207dc2fc6eb6b9f092af383f",
+    "hermes_credential_pool_module": "/home/shawn_teamnebula_ai/.hermes/hermes-agent/agent/credential_pool.py",
+    "hermes_credential_pool_sha256": "be1a45cb8e2b34463b079941b0c9c18f76f8bc7d2c22282696783eca389a99fb",
+    "maintenance_lock": "~/.hermes/codex-health/SELF_HEAL_PAUSED",
+    "retry_s": 21600,
+    "peers": [
+      {
+        "label": "src",
+        "ip": "100.70.49.54",
+        "ssh_user": "hermes",
+        "identity_file": "~/.ssh/watchdog-repair",
+        "known_hosts": "~/.ssh/watchdog-repair-known_hosts",
+        "maintenance_lock": "/home/hermes/.hermes/codex-health/SELF_HEAL_PAUSED",
+        "health_timer": "hermes-codex-health.timer",
+        "check_service": "hermes-codex-health.service",
+        "heartbeat_service": "hermes-codex-heartbeat.service"
+      },
+      {
+        "label": "r2h-observer",
+        "ip": "100.85.162.108",
+        "ssh_user": "hermes",
+        "identity_file": "~/.ssh/watchdog-repair",
+        "known_hosts": "~/.ssh/watchdog-repair-known_hosts",
+        "maintenance_lock": "/home/hermes/.watchdog-observer/SELF_HEAL_PAUSED",
+        "health_timer": "codex-observer.timer",
+        "check_service": "codex-observer.service",
+        "heartbeat_service": "codex-observer-heartbeat.service"
+      }
+    ]
+  },
+  "reauth_url": "https://auth.openai.com/codex/device",
+  "renotify_s": 86400,
+  "subject": "Action needed: Team Nebula Hermes lost its Codex sign-in (neb-ops-gcp)",
+  "ticket_title": "Codex sign-in lost — Team Nebula Hermes (neb-ops-gcp)",
+  "channels": {
+    "slack": {
+      "channel": "C09FLJDCAJD",
+      "token_env": "SLACK_BOT_TOKEN"
+    },
+    "email": {
+      "to": [
+        "shawn@teamnebula.ai",
+        "ian@teamnebula.ai",
+        "abraham@teamnebula.ai"
+      ],
+      "key_env": "TMN_COMPOSIO_API_KEY",
+      "composio_user_id": "tmn-shawn",
+      "connected_account_id": "ca_SemC_xtQG4-B"
+    }
+  },
+  "runbook": [
+    "A HUMAN MUST DO THIS. It cannot be automated and nothing will",
+    "self-heal: OpenAI now mandates 2FA on sign-in, so the login has to be completed",
+    "by a person at a browser. Until someone runs these steps the bot stays down.",
+    "",
+    "1. SSH to the VM:",
+    "   ssh neb-ops-gcp",
+    "",
+    "2. Start the device-code login in the default Hermes home:",
+    "   hermes auth add openai-codex --type oauth --no-browser",
+    "",
+    "3. It prints https://auth.openai.com/codex/device plus a short code. Open the URL",
+    "   in any browser, enter the code, sign in, and complete the 2FA challenge.",
+    "   Run it under tmux if your session might drop — the process must stay alive to",
+    "   receive the token, and 2FA makes this step slower than the CLI's default wait.",
+    "   If it gives up before you finish, re-run with a longer --timeout.",
+    "",
+    "4. Confirm it landed (do NOT trust `auth status`, it reports \"logged in\" even when",
+    "   no usable credential exists):",
+    "   hermes auth list          # want: openai-codex credentials in the active pool",
+    "",
+    "5. Restart the gateway:",
+    "   systemctl --user restart hermes-gateway.service",
+    "",
+    "6. Verify a real turn:",
+    "   hermes -z \"Reply with exactly one word: PONG\""
+  ],
+  "context_note": [
+    "Why this needs a person: the only repair is a full re-login, which OpenAI now gates",
+    "behind 2FA. There is no unattended path back. Do not wait for it to recover by itself.",
+    "",
+    "This box has fallback providers. A broken Codex credential can route work onto a paid",
+    "provider, so treat the alert as a reliability and cost issue even if Nebby still answers.",
+    "",
+    "Use a FRESH authorization, not a copy of the one src holds. Both boxes previously",
+    "shared one OAuth lineage, and whichever refreshes last silently invalidates the other —",
+    "that is what caused the July outage. The credential `label` field is cosmetic and reads",
+    "the same on both boxes; compare the refresh-token fingerprint printed in this alert."
+  ],
+  "quota_subject": "Action needed: Team Nebula Hermes is out of Codex quota (neb-ops-gcp)",
+  "quota_ticket_title": "Codex quota exhausted — Team Nebula Hermes (neb-ops-gcp)",
+  "quota_note": [
+    "This box has fallback providers. Codex quota exhaustion can move work to a paid route,",
+    "so confirm the active provider before treating a successful reply as recovery.",
+    "",
+    "@Teamnebula_bot and @Screddy_bot are on SEPARATE ChatGPT accounts. Check which one this",
+    "credential is attached to before upgrading anything: on 2026-08-15 the tmn credential was",
+    "signed in through \"Continue with Google\" onto an account with no plan at all, and the",
+    "device page reuses whatever ChatGPT session the browser already has — so it re-attached",
+    "the same free account twice without ever showing an account picker. Use a private window.",
+    "",
+    "Plus caps are a 7-day rolling window, so a reset can be days out, not hours."
+  ],
+  "peers": [
+    {
+      "label": "src",
+      "bot_label": "@Screddy_bot",
+      "url": "http://100.70.49.54:8299/heartbeat",
+      "stale_after_s": 46800
+    },
+    {
+      "label": "r2h-observer",
+      "bot_label": "the backstop observer",
+      "url": "http://100.85.162.108:8299/heartbeat",
+      "stale_after_s": 46800
+    }
+  ]
+}

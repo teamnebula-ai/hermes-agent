@@ -1,0 +1,8 @@
+[Unit]
+Description=Escalate when backstop observer self-healing fails
+
+[Service]
+Type=oneshot
+EnvironmentFile=-%h/.watchdog-observer/.env
+ExecStart=/usr/bin/python3 %h/.watchdog-observer/notify_failure.py --unit codex-observer-self-heal.service
+TimeoutStartSec=120
