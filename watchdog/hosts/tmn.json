@@ -26,17 +26,6 @@
         "health_timer": "hermes-codex-health.timer",
         "check_service": "hermes-codex-health.service",
         "heartbeat_service": "hermes-codex-heartbeat.service"
-      },
-      {
-        "label": "r2h-observer",
-        "ip": "100.85.162.108",
-        "ssh_user": "hermes",
-        "identity_file": "~/.ssh/watchdog-repair",
-        "known_hosts": "~/.ssh/watchdog-repair-known_hosts",
-        "maintenance_lock": "/home/hermes/.watchdog-observer/SELF_HEAL_PAUSED",
-        "health_timer": "codex-observer.timer",
-        "check_service": "codex-observer.service",
-        "heartbeat_service": "codex-observer-heartbeat.service"
       }
     ]
   },
@@ -121,8 +110,8 @@
       "stale_after_s": 46800
     },
     {
-      "label": "r2h-observer",
-      "bot_label": "the backstop observer",
+      "label": "tmn-codex-observer",
+      "bot_label": "the dedicated TMN observer",
       "url": "http://100.85.162.108:8299/heartbeat",
       "stale_after_s": 46800
     }

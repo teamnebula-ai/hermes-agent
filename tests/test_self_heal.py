@@ -138,11 +138,11 @@ class CliArgs:
 def write_cli_config(tmp_path, *, peers=None, observer=False):
     if observer:
         cfg = {
-            "host_label": "observer",
+            "host_label": "tmn-codex-observer",
             "mode": "observer",
             "self_heal": {
-                "health_timer": "codex-observer.timer",
-                "check_service": "codex-observer.service",
+                "health_timer": "tmn-codex-observer.timer",
+                "check_service": "tmn-codex-observer.service",
                 "gateway_restart": False,
                 "maintenance_lock": str(tmp_path / "SELF_HEAL_PAUSED"),
                 "retry_s": 21600,
@@ -1809,7 +1809,7 @@ def test_continuing_peer_outage_retries_after_cooldown_without_renotifying(tmp_p
 def test_committed_peer_repair_allowlists_match_tailnet_topology():
     tmn = json.loads((WATCHDOG / "hosts" / "tmn.json").read_text())
     observer = json.loads(
-        (WATCHDOG / "hosts" / "r2h-observer.json").read_text()
+        (WATCHDOG / "hosts" / "tmn-observer.json").read_text()
     )
     src = json.loads((WATCHDOG / "hosts" / "src.json").read_text())
 
@@ -1825,19 +1825,8 @@ def test_committed_peer_repair_allowlists_match_tailnet_topology():
             "check_service": "hermes-codex-health.service",
             "heartbeat_service": "hermes-codex-heartbeat.service",
         },
-        {
-            "label": "r2h-observer",
-            "ip": "100.85.162.108",
-            "ssh_user": "hermes",
-            "identity_file": "~/.ssh/watchdog-repair",
-            "known_hosts": "~/.ssh/watchdog-repair-known_hosts",
-            "maintenance_lock": "/home/hermes/.watchdog-observer/SELF_HEAL_PAUSED",
-            "health_timer": "codex-observer.timer",
-            "check_service": "codex-observer.service",
-            "heartbeat_service": "codex-observer-heartbeat.service",
-        },
     ]
-    assert observer["host_label"] == "r2h-observer"
+    assert observer["host_label"] == "tmn-codex-observer"
     assert observer["self_heal"]["peers"] == []
     assert not (src.get("self_heal") or {}).get("peers")
 
@@ -2515,10 +2504,10 @@ def test_every_codex_role_wires_a_healer_timer_and_notifier():
             "%h/.hermes/codex-health/self_heal.py",
             "%h/.hermes/.env",
         ),
-        "codex-observer-self-heal.service": (
-            "codex-observer-self-heal-notify.service",
-            "%h/.watchdog-observer/self_heal.py",
-            "%h/.watchdog-observer/.env",
+        "tmn-codex-observer-self-heal.service": (
+            "tmn-codex-observer-self-heal-notify.service",
+            "%h/.watchdog-tmn-observer/self_heal.py",
+            "%h/.watchdog-tmn-observer/.env",
         ),
     }
     for service, (notifier, script, env_file) in pairs.items():
@@ -2544,7 +2533,7 @@ def test_shipped_role_configs_have_exact_local_healer_settings():
     src = json.loads((WATCHDOG / "hosts" / "src.json").read_text())
     tmn = json.loads((WATCHDOG / "hosts" / "tmn.json").read_text())
     observer = json.loads(
-        (WATCHDOG / "hosts" / "r2h-observer.json").read_text()
+        (WATCHDOG / "hosts" / "tmn-observer.json").read_text()
     )
 
     assert {k: v for k, v in src["self_heal"].items() if k != "peers"} == {
@@ -2574,10 +2563,10 @@ def test_shipped_role_configs_have_exact_local_healer_settings():
         "retry_s": 21600,
     }
     assert {k: v for k, v in observer["self_heal"].items() if k != "peers"} == {
-        "health_timer": "codex-observer.timer",
-        "check_service": "codex-observer.service",
+        "health_timer": "tmn-codex-observer.timer",
+        "check_service": "tmn-codex-observer.service",
         "gateway_restart": False,
-        "maintenance_lock": "~/.watchdog-observer/SELF_HEAL_PAUSED",
+        "maintenance_lock": "~/.watchdog-tmn-observer/SELF_HEAL_PAUSED",
         "retry_s": 21600,
     }
 
@@ -2586,10 +2575,19 @@ def test_installer_wires_healer_roles_without_adding_one_to_nebos():
     source = (WATCHDOG / "install.sh").read_text()
     assert 'HEAL_SERVICE="hermes-codex-self-heal.service"' in source
     assert 'HEAL_SERVICE="hermes-codex-self-heal-tmn.service"' in source
-    assert 'HEAL_SERVICE="codex-observer-self-heal.service"' in source
+    assert 'HEAL_SERVICE="tmn-codex-observer-self-heal.service"' in source
     assert 'HEAL_NOTIFY="hermes-codex-self-heal-notify.service"' in source
     assert 'HEAL_NOTIFY="hermes-codex-self-heal-tmn-notify.service"' in source
-    assert 'HEAL_NOTIFY="codex-observer-self-heal-notify.service"' in source
+    assert 'HEAL_NOTIFY="tmn-codex-observer-self-heal-notify.service"' in source
+    assert 'DEST="$HOME/.watchdog-tmn-observer"' in source
+    assert 'CFG_NAME="tmn-observer"' in source
+    for unit in (
+        "tmn-codex-observer.service",
+        "tmn-codex-observer.timer",
+        "tmn-codex-observer-heartbeat.service",
+        "tmn-codex-observer-self-heal.timer",
+    ):
+        assert (WATCHDOG / "systemd" / unit).is_file()
     assert 'HEAL_SERVICE=""' in source
     assert 'install -m 0755 "$HERE/auth_state.py" "$DEST/auth_state.py"' in source
     assert 'install -m 0755 "$HERE/self_heal.py" "$DEST/self_heal.py"' in source

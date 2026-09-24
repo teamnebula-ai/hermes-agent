@@ -1,0 +1,8 @@
+[Unit]
+Description=Escalate when dedicated TMN observer self-healing fails
+
+[Service]
+Type=oneshot
+EnvironmentFile=-%h/.watchdog-tmn-observer/.env
+ExecStart=/usr/bin/python3 %h/.watchdog-tmn-observer/notify_failure.py --unit tmn-codex-observer-self-heal.service
+TimeoutStartSec=120

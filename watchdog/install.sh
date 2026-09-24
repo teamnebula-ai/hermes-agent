@@ -3,6 +3,7 @@
 #
 #   ./install.sh --host src              # user hermes,   ~/.hermes
 #   ./install.sh --host tmn              # user screddy, ~/.hermes/profiles/tmn
+#   ./install.sh --host tmn-observer     # independent TMN observer, user hermes
 #
 # No usernames or absolute home paths are hardcoded — everything derives from
 # $HOME and $USER, because the two hosts run as different users.
@@ -40,9 +41,9 @@ case "$HOST" in
                 HEAL_SERVICE="hermes-codex-self-heal-tmn.service"; HEAL_TIMER="hermes-codex-self-heal-tmn.timer"; HEAL_NOTIFY="hermes-codex-self-heal-tmn-notify.service" ;;
   nebos-claude) DEST="$HOME/.hermes/profiles/tmn/claude-health"; TIMER="nebos-claude-health.timer";     SERVICE="nebos-claude-health.service";     NOTIFY="nebos-claude-health-notify.service"
                 CHECK_SRC="$HERE/claude_health_check.py"; HEAL_SERVICE=""; HEAL_TIMER=""; HEAL_NOTIFY="" ;;
-  observer)     DEST="$HOME/.watchdog-observer";                 TIMER="codex-observer.timer";          SERVICE="codex-observer.service";          NOTIFY="codex-observer-notify.service";     BEAT="codex-observer-heartbeat.service"; CFG_NAME="r2h-observer"
-                HEAL_SERVICE="codex-observer-self-heal.service"; HEAL_TIMER="codex-observer-self-heal.timer"; HEAL_NOTIFY="codex-observer-self-heal-notify.service" ;;
-  *) echo "usage: $0 --host {src|tmn|nebos-claude|observer}" >&2; exit 2 ;;
+  tmn-observer) DEST="$HOME/.watchdog-tmn-observer"; TIMER="tmn-codex-observer.timer"; SERVICE="tmn-codex-observer.service"; NOTIFY="tmn-codex-observer-notify.service"; BEAT="tmn-codex-observer-heartbeat.service"; CFG_NAME="tmn-observer"
+                HEAL_SERVICE="tmn-codex-observer-self-heal.service"; HEAL_TIMER="tmn-codex-observer-self-heal.timer"; HEAL_NOTIFY="tmn-codex-observer-self-heal-notify.service" ;;
+  *) echo "usage: $0 --host {src|tmn|nebos-claude|tmn-observer}" >&2; exit 2 ;;
 esac
 
 CFG_SRC="$HERE/hosts/${CFG_NAME:-$HOST}.json"
@@ -112,7 +113,7 @@ backup_artifact() {
 mkdir -p "$DEST" "$UNIT_DIR"
 PAYLOAD_NAMES=(check.py config.json notify_failure.py)
 [[ "$HOST" != "nebos-claude" ]] && PAYLOAD_NAMES+=(auth_state.py)
-if [[ "$HOST" != "nebos-claude" && "$HOST" != "observer" ]]; then
+if [[ "$HOST" != "nebos-claude" && "$HOST" != "tmn-observer" ]]; then
   PAYLOAD_NAMES+=(codex_auth_probe.py)
 fi
 if [[ -n "$HEAL_SERVICE" ]]; then
@@ -141,14 +142,14 @@ if [[ -n "$HEAL_SERVICE" ]]; then
 fi
 install -m 0755 "$CHECK_SRC" "$DEST/check.py"
 install -m 0644 "$CFG_SRC"   "$DEST/config.json"
-# The Codex check and healer share one passive auth classifier. The observer
-# imports it even though observer mode never reads a local credential.
+# The Codex check and healer share one passive auth classifier. Observer mode
+# imports it through the shared check module but reads no local credentials.
 if [[ "$HOST" != "nebos-claude" ]]; then
   install -m 0755 "$HERE/auth_state.py" "$DEST/auth_state.py"
 fi
 # The live probe is a codex triage tool; the Claude watchdog already probes live,
 # so shipping it there would just be a second thing that can rot.
-if [[ "$HOST" != "nebos-claude" && "$HOST" != "observer" ]]; then
+if [[ "$HOST" != "nebos-claude" && "$HOST" != "tmn-observer" ]]; then
   install -m 0755 "$HERE/codex_auth_probe.py" "$DEST/codex_auth_probe.py"
 fi
 # The three Codex roles run the bounded healer. NEBOS Claude has no healer.

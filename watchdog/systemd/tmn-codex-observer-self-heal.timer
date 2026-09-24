@@ -1,5 +1,5 @@
 [Unit]
-Description=Run backstop Codex observer self-healing every 15 minutes
+Description=Run TMN Codex observer self-healing every 15 minutes
 
 [Timer]
 OnBootSec=2m

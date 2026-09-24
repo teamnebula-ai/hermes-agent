@@ -318,7 +318,7 @@ def test_every_healer_unit_wires_a_healer_specific_notifier():
         "hermes-codex-self-heal-tmn.service": (
             "hermes-codex-self-heal-tmn-notify.service"
         ),
-        "codex-observer-self-heal.service": "codex-observer-self-heal-notify.service",
+        "tmn-codex-observer-self-heal.service": "tmn-codex-observer-self-heal-notify.service",
     }
     for unit, notify in pairs.items():
         body = (WATCHDOG / "systemd" / unit).read_text()
@@ -410,12 +410,12 @@ def test_env_beside_the_script_is_used_when_there_is_no_hermes_home(tmp_path, se
 
 def test_the_observer_serves_a_heartbeat_so_nothing_is_unwatched():
     """Closing the last hole: the backstop used to be watched by nobody."""
-    unit = (WATCHDOG / "systemd" / "codex-observer-heartbeat.service").read_text()
+    unit = (WATCHDOG / "systemd" / "tmn-codex-observer-heartbeat.service").read_text()
     assert "heartbeat_server.py" in unit and "--port 8299" in unit
     assert "Restart=always" in unit
 
     sh = (WATCHDOG / "install.sh").read_text()
-    assert 'BEAT="codex-observer-heartbeat.service"' in sh
+    assert 'BEAT="tmn-codex-observer-heartbeat.service"' in sh
 
 
 def test_every_shipped_config_names_itself_for_escalation():
@@ -425,7 +425,7 @@ def test_every_shipped_config_names_itself_for_escalation():
     its Telegram alert would have read "unknown host … a Hermes bot" — anonymous
     at the one moment the name matters. Caught when install.sh printed host=None.
     """
-    for name in ("src", "tmn", "r2h-observer", "nebos-claude"):
+    for name in ("src", "tmn", "tmn-observer", "nebos-claude"):
         cfg = json.loads((WATCHDOG / "hosts" / f"{name}.json").read_text())
         assert cfg.get("host_label"), f"{name}.json has no host_label"
         assert cfg.get("bot_label"), f"{name}.json has no bot_label"

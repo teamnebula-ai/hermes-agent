@@ -203,9 +203,9 @@ def test_company_alerts_reach_the_team_and_personal_ones_do_not():
     assert personal["channels"]["email"]["to"] == ["shawn@teamnebula.ai"]
     assert "ian@teamnebula.ai" not in personal["channels"]["email"]["to"]
 
-    # The separate observer covers both Hermes bots through its independent
-    # Telegram route and does not borrow the Team Nebula Slack credential.
-    obs = chk.load_config(WATCHDOG / "hosts" / "r2h-observer.json")
+    # The dedicated TMN observer uses its own Telegram route and does not borrow
+    # the Team Nebula Slack credential.
+    obs = chk.load_config(WATCHDOG / "hosts" / "tmn-observer.json")
     assert sorted(obs["channels"]) == ["telegram"]
     assert obs["channels"]["telegram"]["chat_id"] == "6056863584"
 
@@ -264,11 +264,11 @@ def test_shipped_configs_carry_their_own_runbook_only():
     assert "--profile tmn" not in host_rb and "tunnel-through-iap" not in host_rb
 
 
-def test_r2h_observer_runbook_uses_the_verified_vm_alias():
-    observer = chk.load_config(WATCHDOG / "hosts" / "r2h-observer.json")
+def test_tmn_observer_runbook_uses_the_verified_vm_alias():
+    observer = chk.load_config(WATCHDOG / "hosts" / "tmn-observer.json")
     runbook = "\n".join(observer["runbook"])
 
-    assert observer["host_label"] == "r2h-observer"
+    assert observer["host_label"] == "tmn-codex-observer"
     assert "ssh r2h-hermes" in runbook
     assert "ssh screddy-hermes" not in runbook
 
@@ -641,27 +641,27 @@ def test_heartbeat_is_written_on_every_completed_run(host):
 def test_shipped_configs_match_the_post_migration_tailnet_topology():
     src = chk.load_config(WATCHDOG / "hosts" / "src.json")
     tmn = chk.load_config(WATCHDOG / "hosts" / "tmn.json")
-    observer = chk.load_config(WATCHDOG / "hosts" / "r2h-observer.json")
+    observer = chk.load_config(WATCHDOG / "hosts" / "tmn-observer.json")
 
     assert src["host_label"] == "src"
     assert not src.get("peer") and not src.get("peers")
     assert tmn["host_label"] == "neb-ops-gcp"
     assert tmn["hermes_home"] == "~/.hermes"
     assert tmn["gateway_unit"] == "hermes-gateway.service"
-    assert observer["host_label"] == "r2h-observer"
+    assert observer["host_label"] == "tmn-codex-observer"
 
-    # The independent R2H observer and live TMN host read both Hermes peers over
-    # the tailnet. The retired hermes-tmn VM is no longer a monitoring target.
-    assert [p["label"] for p in tmn["peers"]] == ["src", "r2h-observer"]
+    # TMN watches the source host plus its dedicated observer. The retired
+    # hermes-tmn VM is no longer a monitoring target.
+    assert [p["label"] for p in tmn["peers"]] == ["src", "tmn-codex-observer"]
     assert "peer" not in tmn
-    assert sorted(p["label"] for p in observer["peers"]) == ["neb-ops-gcp", "src"]
+    assert [p["label"] for p in observer["peers"]] == ["neb-ops-gcp"]
 
     # Tailnet addresses only. A public URL recreates the retired Hostinger route
     # that triggered the false alert after the August migration.
     everything = list(tmn["peers"]) + list(observer["peers"])
     for peer in everything:
         assert "://100." in peer["url"], peer["url"]
-        assert peer["stale_after_s"] >= 2 * 6 * 3600
+        assert peer["stale_after_s"] >= 6 * 3600
 
     src_urls = {p["url"] for p in everything if p["label"] == "src"}
     assert src_urls == {"http://100.70.49.54:8299/heartbeat"}
@@ -898,11 +898,11 @@ def test_non_codex_gateway_is_quiet_but_unreadable_config_is_loud(tmp_path):
 
 
 # --------------------------------------------------------------------------
-# observer host: the backstop for peers without live coverage
+# independent observer for TMN's Hermes heartbeat
 # --------------------------------------------------------------------------
 
 def obs_cfg(**over):
-    cfg = {"host_label": "r2h-observer", "mode": "observer",
+    cfg = {"host_label": "tmn-codex-observer", "mode": "observer",
            "peers": [
                {"label": "src", "bot_label": "@Screddy_bot",
                 "url": "http://100.70.49.54:8299/heartbeat", "stale_after_s": 46800},
@@ -932,18 +932,16 @@ def peers_aged(monkeypatch, ages):
 @pytest.mark.parametrize(
     ("ages", "expected_status", "expected_dark"),
     [
-        ({"src": 60, "neb-ops-gcp": 60}, "ok", None),
-        ({"src": 99 * 3600, "neb-ops-gcp": 60}, "ok", None),
-        ({"src": 60, "neb-ops-gcp": 99 * 3600}, "peer", "neb-ops-gcp"),
-        ({"src": 99 * 3600, "neb-ops-gcp": 99 * 3600}, "peer", "src"),
+        ({"neb-ops-gcp": 60}, "ok", None),
+        ({"neb-ops-gcp": 99 * 3600}, "peer", "neb-ops-gcp"),
     ],
 )
 def test_observer_alerts_for_dark_peers_without_live_coverage(
     monkeypatch, ages, expected_status, expected_dark
 ):
-    """TMN covers src, but src cannot cover a dark TMN watchdog."""
+    """The dedicated TMN observer evaluates only the TMN heartbeat."""
     peers_aged(monkeypatch, ages)
-    cfg = chk.load_config(WATCHDOG / "hosts" / "r2h-observer.json")
+    cfg = chk.load_config(WATCHDOG / "hosts" / "tmn-observer.json")
 
     status, detail, _ = chk.observe_peers(cfg, {})
 
@@ -1020,14 +1018,14 @@ def test_telegram_token_falls_back_to_private_hermes_store(tmp_path, monkeypatch
     assert chk.env_val("TELEGRAM_BOT_TOKEN", hermes_home) == ""
 
 
-def test_shipped_observer_config_watches_both_boxes_over_the_tailnet():
-    cfg = chk.load_config(WATCHDOG / "hosts" / "r2h-observer.json")
+def test_shipped_tmn_observer_config_watches_only_tmn_over_the_tailnet():
+    cfg = chk.load_config(WATCHDOG / "hosts" / "tmn-observer.json")
     assert cfg["mode"] == "observer"
-    assert sorted(p["label"] for p in cfg["peers"]) == ["neb-ops-gcp", "src"]
+    assert [p["label"] for p in cfg["peers"]] == ["neb-ops-gcp"]
     for peer in cfg["peers"]:
         assert "://100." in peer["url"]
-    # The observer reaches Shawn through Telegram and keeps company credentials
-    # off the independent R2H host.
+    # The TMN-only observer reaches Shawn through Telegram and keeps company
+    # credentials off the independent R2H host.
     assert sorted(cfg["channels"]) == ["telegram"]
     assert "email" not in cfg["channels"]
     assert "hermes_home" not in cfg
@@ -1152,7 +1150,7 @@ def test_any_dark_peer_is_reported_not_just_all(monkeypatch):
     """A normal watchdog reports any dark peer without applying observer coverage."""
     import contextlib, io, json as _json
     def opener(url, timeout=0):
-        if "100.85.162.108" in url:                     # the observer is dark
+        if "100.85.162.108" in url:                     # the TMN observer is dark
             raise OSError("unreachable")
         body = _json.dumps({"at": int(time.time()) - 60}).encode()
         return contextlib.closing(io.BytesIO(body))
@@ -1160,11 +1158,11 @@ def test_any_dark_peer_is_reported_not_just_all(monkeypatch):
 
     cfg = chk.load_config(WATCHDOG / "hosts" / "tmn.json")
     status, _, fails = chk.read_peers(cfg, {})
-    assert status == "ok" and fails["r2h-observer"] == 1  # one miss, no page
+    assert status == "ok" and fails["tmn-codex-observer"] == 1  # one miss, no page
 
     status, detail, fails = chk.read_peers(cfg, fails)
     assert status == "peer"
-    assert "r2h-observer" in detail
+    assert "tmn-codex-observer" in detail
     assert fails["src"] == 0                          # healthy peer stays reset
 
 

@@ -1,0 +1,50 @@
+{
+  "host_label": "tmn-codex-observer",
+  "bot_label": "@Teamnebula_bot",
+  "mode": "observer",
+  "renotify_s": 86400,
+  "self_heal": {
+    "health_timer": "tmn-codex-observer.timer",
+    "check_service": "tmn-codex-observer.service",
+    "gateway_restart": false,
+    "maintenance_lock": "~/.watchdog-tmn-observer/SELF_HEAL_PAUSED",
+    "retry_s": 21600,
+    "peers": []
+  },
+  "subject": "Action needed: TMN Hermes has lost its independent watchdog",
+  "ticket_title": "TMN Hermes watchdog coverage lost — reported by R2H",
+  "peers": [
+    {
+      "label": "neb-ops-gcp",
+      "bot_label": "@Teamnebula_bot",
+      "url": "http://100.74.25.61:8299/heartbeat",
+      "stale_after_s": 25200,
+      "covered_by": []
+    }
+  ],
+  "channels": {
+    "telegram": {
+      "chat_id": "6056863584",
+      "token_env": "TELEGRAM_BOT_TOKEN"
+    }
+  },
+  "runbook": [
+    "The independent watchdog for TMN Hermes on neb-ops-gcp stopped receiving fresh heartbeats.",
+    "",
+    "Check the monitored host:",
+    "  ssh neb-ops-gcp 'systemctl --user status hermes-codex-health-tmn.timer hermes-codex-self-heal-tmn.timer'",
+    "  ssh neb-ops-gcp 'journalctl --user -u hermes-codex-health-tmn.service -n 50'",
+    "",
+    "Check the independent observer on the R2H VM:",
+    "  ssh r2h-hermes 'systemctl --user status tmn-codex-observer.timer tmn-codex-observer-heartbeat.service'",
+    "  ssh r2h-hermes 'journalctl --user -u tmn-codex-observer.service -n 50'",
+    "",
+    "The observer reports loss of watchdog heartbeat coverage; Codex sign-in failures are reported by the TMN health check itself."
+  ],
+  "context_note": [
+    "This is a dedicated observer process on the separate R2H Hermes VM (Tailscale peer r2h-observer, 100.85.162.108).",
+    "It watches only neb-ops-gcp and cannot inspect Codex credentials or restart Hermes gateways.",
+    "TMN monitors this heartbeat but has no SSH repair access to the independent observer.",
+    "The observer sends its alerts through the R2H host's configured Telegram bot and private chat."
+  ]
+}

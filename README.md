@@ -37,11 +37,12 @@ source of truth for everything not listed below; read the upstream docs first.
 
 **Where it runs.** The Team Nebula gateway runs on `neb-ops-gcp`; the independently operated
 R2H Hermes VM is `reddy2help` (`r2h-hermes` over SSH, Tailscale identity `r2h-observer`). Both
-use user-level systemd units (`systemctl --user`). The R2H VM also runs the separate Codex
-watchdog observer from `watchdog/`: it checks the `src` and `neb-ops-gcp` heartbeat endpoints,
-without reading either host's Codex credentials or restarting their gateways. The observer
-alerts through its own configured Telegram bot. Install it on R2H with
-`./watchdog/install.sh --host observer`; install the TMN watchdog on `neb-ops-gcp` with
+use user-level systemd units (`systemctl --user`). R2H runs a dedicated TMN Codex watchdog in
+its own user units and state directory. It watches only the `neb-ops-gcp` heartbeat and alerts
+through its own configured Telegram bot. It does not read TMN Codex credentials or restart
+either Hermes gateway. Install it on R2H with `./watchdog/install.sh --host tmn-observer`. The
+TMN health check can read its heartbeat, but has no repair access to the independent observer.
+Install the TMN watchdog with
 `./watchdog/install.sh --host tmn` after installing the pinned SSH peer key and host key.
 A profile that sets `API_SERVER_ENABLED=true` also exposes the HTTP API server on its
 `API_SERVER_PORT`, so ports must not collide across profiles running at the same time.
