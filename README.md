@@ -61,6 +61,10 @@ Both divergences carry fork-only tests: `tests/run_agent/test_memory_sync_multim
 Hermes watchdog configuration, units, and install checks live in this repository under
 `watchdog/`; the retired `hermes-infra` deployment is not the source for these active hosts.
 
+### Team Nebula coding operator
+
+The Team Nebula Hermes coding operator owns `neb-ops-gcp`, uses authenticated `/usr/local/bin/gh` with HTTPS Git, and uses `sudo -n docker` when deployment access is authorized. It must verify tests, the pushed PR, authorized merge, deployed revision, and live behavior separately; a healthy process alone is not deployment or feature verification. Screddy can delegate coding tasks through the tracked `coding_fleet` tools. RS21 repositories are excluded.
+
 ---
 
 ## Quick Install
