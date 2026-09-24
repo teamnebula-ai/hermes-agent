@@ -1,0 +1,12 @@
+[Unit]
+Description=Repair Team Nebula Hermes Codex watchdog faults
+After=network-online.target tailscaled.service
+Wants=network-online.target
+OnFailure=hermes-codex-self-heal-tmn-notify.service
+
+[Service]
+Type=oneshot
+Environment="HERMES_HOME=%h/.hermes"
+EnvironmentFile=-%h/.hermes/.env
+ExecStart=/usr/bin/python3 %h/.hermes/codex-health/self_heal.py
+TimeoutStartSec=180

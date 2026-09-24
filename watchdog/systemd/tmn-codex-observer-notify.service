@@ -1,0 +1,8 @@
+[Unit]
+Description=Escalate over Telegram when the dedicated TMN observer cannot report
+
+[Service]
+Type=oneshot
+EnvironmentFile=-%h/.watchdog-tmn-observer/.env
+ExecStart=/usr/bin/python3 %h/.watchdog-tmn-observer/notify_failure.py --unit tmn-codex-observer.service
+TimeoutStartSec=120

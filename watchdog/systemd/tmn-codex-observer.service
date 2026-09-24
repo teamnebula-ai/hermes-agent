@@ -1,0 +1,13 @@
+[Unit]
+Description=Independent watchdog for TMN Hermes heartbeat coverage
+After=network-online.target tailscaled.service
+Wants=network-online.target
+# Any non-zero exit means the observer could not report through its own
+# channel. Escalate over a transport that cannot fail the same way.
+OnFailure=tmn-codex-observer-notify.service
+
+[Service]
+Type=oneshot
+EnvironmentFile=-%h/.watchdog-tmn-observer/.env
+ExecStart=/usr/bin/python3 %h/.watchdog-tmn-observer/check.py
+TimeoutStartSec=300

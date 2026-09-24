@@ -1,0 +1,12 @@
+[Unit]
+Description=Run codex keepalive every 30 min (keeps Hermes openai-codex token fresh box-wide)
+
+[Timer]
+OnBootSec=2min
+OnUnitActiveSec=30min
+# Catch up after the box (or the user manager) was asleep, so the token is refreshed promptly.
+Persistent=true
+AccuracySec=1min
+
+[Install]
+WantedBy=timers.target

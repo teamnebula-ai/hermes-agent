@@ -1,0 +1,60 @@
+{
+  "host_label": "hermes-tmn (NEBOS v2 Claude)",
+  "bot_label": "NEBOS v2",
+  "label": "NEBOS v2 (nebos-dev, Cloud Run)",
+  "secret_name": "CLAUDE_CODE_OAUTH_TOKEN",
+  "gcp_project": "nebos-dev",
+  "probe_model": "claude-haiku-4-5-20251001",
+  "renotify_s": 86400,
+  "reauth_url": "https://claude.ai/settings/profile",
+  "subject": "Action needed: NEBOS lost its Claude sign-in (nebos-dev)",
+  "channels": {
+    "slack": {
+      "channel": "C09FLJDCAJD",
+      "token_env": "SLACK_BOT_TOKEN"
+    },
+    "email": {
+      "to": [
+        "shawn@teamnebula.ai",
+        "ian@teamnebula.ai",
+        "abraham@teamnebula.ai"
+      ],
+      "key_env": "TMN_COMPOSIO_API_KEY",
+      "composio_user_id": "tmn-shawn",
+      "connected_account_id": "ca_SemC_xtQG4-B"
+    }
+  },
+  "runbook": [
+    "A HUMAN MUST DO THIS. Nothing will self-heal: the token is a Claude Code",
+    "OAuth credential and minting a new one requires signing in as a person.",
+    "",
+    "1. On any machine with the Claude CLI, mint a fresh long-lived token:",
+    "   claude setup-token",
+    "",
+    "2. Put it in Secret Manager as a NEW VERSION (do not edit version 1):",
+    "   printf '%s' '<token>' | gcloud secrets versions add CLAUDE_CODE_OAUTH_TOKEN \\",
+    "     --project nebos-dev --data-file=-",
+    "",
+    "3. Roll the Cloud Run service so it picks the new version up. The deploy",
+    "   pins :latest, so a redeploy is what re-reads it:",
+    "   cd ~/projects/tmn/nebos-v2 && make deploy",
+    "",
+    "4. Confirm NEBOS is serving and the credential took:",
+    "   make health"
+  ],
+  "context_note": [
+    "Why this matters: nebos-v2's deploy wires CLAUDE_CODE_OAUTH_TOKEN as the only",
+    "Anthropic credential (ANTHROPIC_API_KEY appears in .env.example but is not in",
+    "the deploy secrets), so when this token stops authenticating every Claude-backed",
+    "NEBOS feature stops with it.",
+    "",
+    "This token is SEPARATE from the one hermes-tmn uses. Verified 2026-08-12:",
+    "nebos-dev lineage 93283b3d, hermes-tmn lineage c933b77b. Keep them separate —",
+    "sharing one credential across two systems is what caused the July codex outage,",
+    "where whichever side refreshed last silently invalidated the other.",
+    "",
+    "Scope note: this watches the CREDENTIAL, not the service. NEBOS can be down for",
+    "reasons that have nothing to do with Claude auth, and this check will stay quiet",
+    "through all of them."
+  ]
+}

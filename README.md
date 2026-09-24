@@ -35,11 +35,17 @@ This repository is Team Nebula's operated fork of
 [NousResearch/hermes-agent](https://github.com/NousResearch/hermes-agent). Upstream remains the
 source of truth for everything not listed below; read the upstream docs first.
 
-**Where it runs.** The fork backs the production gateways on `neb-brain-hostinger` as
-user-level systemd units (`systemctl --user`), one gateway process per profile, each with its
-own `HERMES_HOME` under `~/.hermes/profiles/<name>/` and its own `.env`. A profile that sets
-`API_SERVER_ENABLED=true` also exposes the HTTP API server on its `API_SERVER_PORT`, so ports
-must not collide across profiles running at the same time.
+**Where it runs.** The Team Nebula gateway runs on `neb-ops-gcp`; the independently operated
+R2H Hermes VM is `reddy2help` (`r2h-hermes` over SSH, Tailscale identity `r2h-observer`). Both
+use user-level systemd units (`systemctl --user`). R2H runs a dedicated TMN Codex watchdog in
+its own user units and state directory. It watches only the `neb-ops-gcp` heartbeat and alerts
+through its own configured Telegram bot. It does not read TMN Codex credentials or restart
+either Hermes gateway. Install it on R2H with `./watchdog/install.sh --host tmn-observer`. The
+TMN health check can read its heartbeat, but has no repair access to the independent observer.
+Install the TMN watchdog with
+`./watchdog/install.sh --host tmn` after installing the pinned SSH peer key and host key.
+A profile that sets `API_SERVER_ENABLED=true` also exposes the HTTP API server on its
+`API_SERVER_PORT`, so ports must not collide across profiles running at the same time.
 
 **Divergences from upstream.**
 
@@ -48,12 +54,12 @@ must not collide across profiles running at the same time.
 | External memory sync | `run_agent.py` flattens multimodal `content` part lists to text before handing them to memory providers, recording attachments as an `[N image(s)]` marker | Providers feed these values into text APIs. Mem0 v3 rejects a list at `POST /v3/memories/add/` with `Not a valid string.`, which silently dropped every multimodal turn from long-term memory instead of storing it. Affected any profile whose worker submits media, including image-evidence agents. |
 | Quota failover ordering | A `fallback_providers` entry on the same provider and `base_url` as the primary is treated as a *same-credential model hop* and taken **before** credential-pool rotation (`_next_fallback_is_same_credential` in `run_agent.py`). The primary model is restored before any rotation (`restore_primary_model_for_rotation` in `agent/agent_runtime_helpers.py`), so each rotated-to credential is tried with the primary model. | Upstream always lets pool rotation win, so a second model on the *same* account is only reached after every credential is spent. That matters when the second model is entitled on one account only: `gpt-5.3-codex-spark` answers HTTP 400 `not supported when using Codex with a ChatGPT account` on plans without the entitlement, so rotating while it was active skipped the remaining ChatGPT accounts and jumped straight to the cross-provider fallback. Configured order is now: primary model on the primary account, spark on that same account, the primary model on each additional ChatGPT account, then Anthropic last. |
 
-Both divergences carry fork-only tests: `tests/run_agent/test_memory_sync_multimodal.py` for the memory flattening, and `tests/run_agent/test_same_credential_model_hop.py` for hop detection, the primary-model restore before rotation, and the chain index that keeps a spent hop from running again. Run them with `scripts/run_tests.sh <path>`.
+Both divergences carry fork-only tests: `tests/run_agent/test_memory_sync_multimodal.py` for the memory flattening, and `tests/run_agent/test_same_credential_model_hop.py` for hop detection, the primary-model restore before rotation, and the chain index that keeps a spent hop from running again. Run them with `scripts/run_tests.sh <path>`. The independent Codex watchdog checks are covered by `tests/test_codex_health_check.py`, `tests/test_self_heal.py`, and `tests/test_notify_failure.py`.
 
 | MCP description scanner | `tools/mcp_tool.py` adds word boundaries to the code-execution rule in `_MCP_INJECTION_PATTERNS`, with first test coverage for the scanner in `tests/tools/test_mcp_description_scan.py` | The rule had no boundary, so it matched the tail of ordinary words: any tool description containing "retrieval (" was logged as a code execution reference. The scan is WARNING-level and never blocks a tool, so the cost was log noise, but a security warning that fires on the word "retrieval" trains operators to ignore it. Candidate to send upstream, since it is not specific to this fork. |
 
-Operational context for these deployments lives in
-[`teamnebula-ai/hermes-infra`](https://github.com/teamnebula-ai/hermes-infra).
+Hermes watchdog configuration, units, and install checks live in this repository under
+`watchdog/`; the retired `hermes-infra` deployment is not the source for these active hosts.
 
 ### Team Nebula coding operator
 

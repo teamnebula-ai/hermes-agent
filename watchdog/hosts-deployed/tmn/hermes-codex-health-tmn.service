@@ -1,0 +1,12 @@
+[Unit]
+Description=Team Nebula Hermes Codex sign-in check (silent unless re-auth is needed)
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+Environment="HERMES_HOME=%h/.hermes/profiles/tmn"
+EnvironmentFile=-%h/.hermes/profiles/tmn/.env
+EnvironmentFile=-%h/.hermes/.env
+ExecStart=/usr/bin/python3 %h/.hermes/profiles/tmn/codex-health/check.py
+TimeoutStartSec=300
