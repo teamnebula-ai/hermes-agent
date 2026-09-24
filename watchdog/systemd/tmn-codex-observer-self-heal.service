@@ -1,0 +1,11 @@
+[Unit]
+Description=Repair dedicated TMN Codex observer watchdog faults
+After=network-online.target tailscaled.service
+Wants=network-online.target
+OnFailure=tmn-codex-observer-self-heal-notify.service
+
+[Service]
+Type=oneshot
+EnvironmentFile=-%h/.watchdog-tmn-observer/.env
+ExecStart=/usr/bin/python3 %h/.watchdog-tmn-observer/self_heal.py
+TimeoutStartSec=180

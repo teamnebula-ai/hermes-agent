@@ -1,0 +1,18 @@
+[Unit]
+Description=Check 4x daily that NEBOS v2 can still authenticate to Anthropic
+
+[Timer]
+# 4 runs/day, matching the codex watchdogs. Offset into a slot nothing else on
+# this box uses: the tmn codex check runs at :35 and hermes-tmn's own
+# claude-token-health at :27, both on 00/06/12/18. This takes 03/09/15/21 at :15
+# so no two checks fire together and alerts never arrive in the same minute.
+#
+# Each run makes ONE 1-token call to the cheapest model. That is affordable
+# here, unlike the retired codex probe, because the account's quota is not the
+# thing being protected.
+OnCalendar=*-*-* 03,09,15,21:15:00
+RandomizedDelaySec=600
+Persistent=true
+
+[Install]
+WantedBy=timers.target

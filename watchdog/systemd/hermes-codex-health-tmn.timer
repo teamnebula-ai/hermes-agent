@@ -1,0 +1,14 @@
+[Unit]
+Description=Check 4x daily that the Hermes tmn Codex sign-in still works
+
+[Timer]
+# 4 runs/day per host by request. The two hosts are interleaved on the
+# half-cycle — tmn on 00/06/12/18, hostinger on 03/09/15/21 — so each box is
+# checked every 6h while the fleet as a whole is checked every 3h, and the two
+# can never alert in the same minute.
+OnCalendar=*-*-* 00,06,12,18:35:00
+RandomizedDelaySec=600
+Persistent=true
+
+[Install]
+WantedBy=timers.target
