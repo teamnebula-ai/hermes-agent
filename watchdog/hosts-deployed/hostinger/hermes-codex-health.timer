@@ -1,0 +1,11 @@
+[Unit]
+Description=Check every 3h that hostinger's Codex sign-in still works
+
+[Timer]
+# 3h is the floor by request. Offset 80min from the hermes-tmn check.
+OnCalendar=*-*-* 01,04,07,10,13,16,19,22:55:00
+RandomizedDelaySec=600
+Persistent=true
+
+[Install]
+WantedBy=timers.target

@@ -1,0 +1,8 @@
+[Unit]
+Description=Escalate when Team Nebula Hermes Codex self-healing fails
+
+[Service]
+Type=oneshot
+EnvironmentFile=-%h/.hermes/.env
+ExecStart=/usr/bin/python3 %h/.hermes/codex-health/notify_failure.py --unit hermes-codex-self-heal-tmn.service
+TimeoutStartSec=120

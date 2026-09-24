@@ -1,0 +1,14 @@
+[Unit]
+Description=NEBOS v2 Claude sign-in check (silent unless re-auth is needed)
+After=network-online.target
+Wants=network-online.target
+# Any non-zero exit means the check could not report through its own
+# channels. Escalate over a transport that cannot fail the same way.
+OnFailure=nebos-claude-health-notify.service
+
+[Service]
+Type=oneshot
+EnvironmentFile=-%h/.hermes/profiles/tmn/.env
+EnvironmentFile=-%h/.hermes/.env
+ExecStart=/usr/bin/python3 %h/.hermes/profiles/tmn/claude-health/check.py
+TimeoutStartSec=300

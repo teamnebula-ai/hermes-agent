@@ -1,0 +1,9 @@
+[Unit]
+Description=Escalate over Telegram when the NEBOS v2 Claude check cannot report
+
+[Service]
+Type=oneshot
+EnvironmentFile=-%h/.hermes/profiles/tmn/.env
+EnvironmentFile=-%h/.hermes/.env
+ExecStart=/usr/bin/python3 %h/.hermes/profiles/tmn/claude-health/notify_failure.py --unit nebos-claude-health.service
+TimeoutStartSec=120
