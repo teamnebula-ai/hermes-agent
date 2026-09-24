@@ -1,10 +1,10 @@
 [Unit]
-Description=Run Team Nebula Hermes watchdog self-healing every 15 minutes
+Description=Run Team Nebula Hermes watchdog self-healing every 60 minutes
 
 [Timer]
 OnBootSec=2m
 OnActiveSec=2m
-OnUnitActiveSec=15m
+OnUnitActiveSec=60m
 Persistent=true
 
 [Install]
