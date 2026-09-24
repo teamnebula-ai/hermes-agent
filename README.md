@@ -44,6 +44,7 @@ either Hermes gateway. Install it on R2H with `./watchdog/install.sh --host tmn-
 TMN health check can read its heartbeat, but has no repair access to the independent observer.
 Install the TMN watchdog with
 `./watchdog/install.sh --host tmn` after installing the pinned SSH peer key and host key.
+The TMN self-heal service repeats every 60 minutes and acts when its health state needs repair.
 A profile that sets `API_SERVER_ENABLED=true` also exposes the HTTP API server on its
 `API_SERVER_PORT`, so ports must not collide across profiles running at the same time.
 
