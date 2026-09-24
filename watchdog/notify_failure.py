@@ -112,7 +112,7 @@ def env_val(name: str, hermes_home: pathlib.Path | None) -> str:
 def read_config(path: pathlib.Path) -> dict:
     """Best-effort config read. A broken config must not suppress the alert."""
     try:
-        return json.loads(path.read_text())
+        return json.loads(path.read_text(encoding="utf-8"))
     except Exception:
         return {}
 

@@ -15,7 +15,8 @@ AUTH_JSON = "/home/ubuntu/.hermes/auth.json"
 
 def main():
     try:
-        tok = json.load(open(AUTH_JSON))["providers"]["openai-codex"]["tokens"]
+        with open(AUTH_JSON, encoding="utf-8") as auth_file:
+            tok = json.load(auth_file)["providers"]["openai-codex"]["tokens"]
         at = tok["access_token"]
     except Exception as e:
         print(f"UNKNOWN: cannot read auth.json ({e})"); return 2

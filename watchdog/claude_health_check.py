@@ -57,7 +57,7 @@ class Disarmed(Exception):
 
 def load_config(path: pathlib.Path) -> dict:
     try:
-        cfg = json.loads(path.read_text())
+        cfg = json.loads(path.read_text(encoding="utf-8"))
     except Exception as e:
         raise Disarmed(f"cannot read config {path}: {type(e).__name__}: {e}")
     for key in ("label", "secret_name", "gcp_project", "probe_model"):
@@ -207,14 +207,14 @@ def load_state(path: pathlib.Path) -> dict:
     if not path.exists():
         return {"status": "ok", "last_alert": 0}
     try:
-        return json.loads(path.read_text())
+        return json.loads(path.read_text(encoding="utf-8"))
     except Exception as e:
         raise Disarmed(f"state file {path} is corrupt: {type(e).__name__}: {e}")
 
 
 def save_state(path: pathlib.Path, s: dict) -> None:
     try:
-        path.write_text(json.dumps(s, indent=2))
+        path.write_text(json.dumps(s, indent=2), encoding="utf-8")
     except Exception as e:
         raise Disarmed(f"cannot write state {path}: {type(e).__name__}: {e}")
 

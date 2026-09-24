@@ -105,7 +105,7 @@ def load_config(path: pathlib.Path) -> dict:
     A missing value must stop the run, not pick a plausible path.
     """
     try:
-        cfg = json.loads(path.read_text())
+        cfg = json.loads(path.read_text(encoding="utf-8"))
     except Exception as e:
         raise Disarmed(f"cannot read config {path}: {type(e).__name__}: {e}")
 
@@ -218,7 +218,7 @@ def gateway_uses_codex(config_yaml: pathlib.Path) -> bool:
     """
     import re
     try:
-        text = config_yaml.read_text()
+        text = config_yaml.read_text(encoding="utf-8")
     except Exception as e:
         raise Disarmed(f"cannot read {config_yaml}: {type(e).__name__}: {e}")
     m = re.search(r"^model:\s*$", text, re.M)
@@ -290,7 +290,7 @@ def write_heartbeat(path: pathlib.Path, cfg: dict, status: str) -> None:
             "unit": cfg.get("gateway_unit", ""),
             "status": status,
             "at": int(time.time()),
-        }))
+        }), encoding="utf-8")
     except Exception as e:
         print(f"  heartbeat not written ({type(e).__name__}: {e})", file=sys.stderr)
 
@@ -509,7 +509,7 @@ def gateway_active(unit: str) -> tuple[bool, str]:
 
 def detect(auth_path: pathlib.Path, gateway_unit: str) -> tuple[str, str]:
     try:
-        d = json.loads(auth_path.read_text())
+        d = json.loads(auth_path.read_text(encoding="utf-8"))
     except Exception as e:
         raise Disarmed(f"cannot read {auth_path}: {type(e).__name__}: {e}")
 
@@ -896,7 +896,7 @@ def load_state(path: pathlib.Path) -> dict:
     if not path.exists():
         return {"status": "ok", "last_alert": 0, "ticket_url": None}
     try:
-        return json.loads(path.read_text())
+        return json.loads(path.read_text(encoding="utf-8"))
     except Exception as e:
         # Do NOT fall back to a default here. Silently resetting to "ok" would
         # turn an ongoing outage into a fabricated recovery and re-arm the edge
@@ -906,7 +906,7 @@ def load_state(path: pathlib.Path) -> dict:
 
 def save_state(path: pathlib.Path, s: dict) -> None:
     try:
-        path.write_text(json.dumps(s, indent=2))
+        path.write_text(json.dumps(s, indent=2), encoding="utf-8")
     except Exception as e:
         raise Disarmed(f"cannot write state {path}: {type(e).__name__}: {e}")
 

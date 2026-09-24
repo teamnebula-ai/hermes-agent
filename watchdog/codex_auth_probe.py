@@ -53,7 +53,7 @@ def resolve_auth(args) -> pathlib.Path:
 
 
 def resolve_credential(auth_path: pathlib.Path) -> tuple[str, str]:
-    auth = json.loads(auth_path.read_text())
+    auth = json.loads(auth_path.read_text(encoding="utf-8"))
     selected = selected_codex_credential(auth)
     if not selected or not selected.get("access_token"):
         raise ValueError("no probeable Codex credential")
