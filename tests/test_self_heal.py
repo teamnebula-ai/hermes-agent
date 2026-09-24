@@ -2498,19 +2498,22 @@ def test_every_codex_role_wires_a_healer_timer_and_notifier():
             "hermes-codex-self-heal-notify.service",
             "%h/.hermes/codex-health/self_heal.py",
             "%h/.hermes/.env",
+            "15m",
         ),
         "hermes-codex-self-heal-tmn.service": (
             "hermes-codex-self-heal-tmn-notify.service",
             "%h/.hermes/codex-health/self_heal.py",
             "%h/.hermes/.env",
+            "60m",
         ),
         "tmn-codex-observer-self-heal.service": (
             "tmn-codex-observer-self-heal-notify.service",
             "%h/.watchdog-tmn-observer/self_heal.py",
             "%h/.watchdog-tmn-observer/.env",
+            "15m",
         ),
     }
-    for service, (notifier, script, env_file) in pairs.items():
+    for service, (notifier, script, env_file, interval) in pairs.items():
         body = (WATCHDOG / "systemd" / service).read_text()
         assert "Type=oneshot" in body
         assert f"ExecStart=/usr/bin/python3 {script}" in body
@@ -2522,7 +2525,7 @@ def test_every_codex_role_wires_a_healer_timer_and_notifier():
         ).read_text()
         assert "OnBootSec=2m" in timer
         assert "OnActiveSec=2m" in timer
-        assert "OnUnitActiveSec=15m" in timer
+        assert f"OnUnitActiveSec={interval}" in timer
         assert "Persistent=true" in timer
         assert "WantedBy=timers.target" in timer
 
