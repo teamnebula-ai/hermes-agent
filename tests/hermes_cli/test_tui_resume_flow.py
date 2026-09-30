@@ -743,6 +743,35 @@ def test_oneshot_none_toolset_disables_all_tools(monkeypatch, capsys):
     assert capsys.readouterr().out == "done\n"
 
 
+def test_oneshot_all_toolset_means_all_tools(monkeypatch, capsys):
+    _stub_plugin_discovery(monkeypatch)
+    import hermes_cli.oneshot as oneshot_mod
+
+    captured = {}
+
+    def fake_run_agent(prompt, **kwargs):
+        captured["prompt"] = prompt
+        captured.update(kwargs)
+        return "done"
+
+    monkeypatch.setattr(oneshot_mod, "_run_agent", fake_run_agent)
+
+    assert oneshot_mod.run_oneshot("review", toolsets="all") == 0
+    assert captured["prompt"] == "review"
+    assert captured["toolsets"] is None
+    assert captured["use_config_toolsets"] is False
+    assert capsys.readouterr().out == "done\n"
+
+
+def test_model_tools_explicit_empty_toolsets_bypasses_kanban_injection(monkeypatch):
+    """With HERMES_KANBAN_TASK set, enabled_toolsets=[] must stay 0 tools (no kanban injection)."""
+    monkeypatch.setenv("HERMES_KANBAN_TASK", "t_task_123")
+    from model_tools import get_tool_definitions
+
+    defs = get_tool_definitions(enabled_toolsets=[], quiet_mode=True)
+    assert defs == []
+
+
 def test_oneshot_none_toolset_cannot_be_combined():
     from hermes_cli.oneshot import _validate_explicit_toolsets
 
