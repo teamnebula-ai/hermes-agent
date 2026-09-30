@@ -35,8 +35,8 @@ delivery.
 
 ### Hardening invariants
 
-- **3-minute hard interrupt** on cron sessions — a runaway agent loop cannot
-  monopolize the scheduler.
+- **10-minute inactivity timeout** on cron sessions (configurable via `HERMES_CRON_TIMEOUT`) —
+  a stalled agent loop cannot monopolize the scheduler, while active jobs may run to completion.
 - **Catchup window**: half the job's period, clamped to 120s–2h.
 - **Grace window**: 120s for one-shot jobs whose fire time was missed.
 - **File lock** at `~/.hermes/cron/.tick.lock` prevents duplicate ticks across

@@ -12,15 +12,14 @@ timestamp: 2026-08-29
 
 Never call `pytest` directly. `scripts/run_tests.sh` enforces hermetic
 environment parity with CI: unsets credential env vars, forces `TZ=UTC` and
-`LANG=C.UTF-8`, runs `-n auto` xdist workers, and loads an in-tree
-subprocess-isolation plugin (`tests/_isolate_plugin.py`).
+`LANG=C.UTF-8`, and runs per-file subprocess isolation via `scripts/run_tests_parallel.py`.
 
 ```bash
 scripts/run_tests.sh                                  # full suite, CI-parity
+scripts/run_tests.sh -j 4                             # cap parallelism
 scripts/run_tests.sh tests/gateway/                    # one directory
-scripts/run_tests.sh tests/agent/test_foo.py::test_x   # one test
-scripts/run_tests.sh -v --tb=long                      # pass-through pytest flags
-scripts/run_tests.sh --no-isolate tests/foo/           # disable subprocess isolation (faster, for debugging)
+scripts/run_tests.sh tests/agent/test_foo.py           # single file
+scripts/run_tests.sh tests/foo.py -- --tb=long        # pass-through pytest flags
 ```
 
 The wrapper probes `.venv` first, then `venv`, then
@@ -34,24 +33,18 @@ The wrapper probes `.venv` first, then `venv`, then
 | `HOME`/`~/.hermes/` | Your real config + auth.json | Temp dir per test |
 | Timezone | Local TZ (e.g. PDT) | UTC |
 | Locale | Whatever is set | C.UTF-8 |
-| xdist workers | `-n auto` = all cores | `-n auto` (safe — isolation prevents cross-worker flakes) |
+| Isolation | Shared process | Per-file isolated subprocesses |
 
 `tests/conftest.py` also enforces points 1-4 as an autouse fixture so *any* pytest
 invocation (including IDE runners) gets hermetic behavior — the wrapper is
 belt-and-suspenders on top. The `_isolate_hermes_home` autouse fixture there
 redirects `HERMES_HOME` to a temp dir; tests must never hardcode `~/.hermes/`.
 
-### Subprocess-per-test isolation
+### Per-file subprocess isolation
 
-Every test runs in a freshly spawned Python subprocess via
-`tests/_isolate_plugin.py`, using `multiprocessing.get_context("spawn")` (works
-identically on Linux/macOS/Windows — no reliance on POSIX `fork`). This means
-module-level dicts/sets and `ContextVar`s from one test cannot leak into the
-next — the historic `_reset_module_state` autouse fixture is gone. Per-test
-overhead is ~0.5–1.0s; xdist amortizes it across cores. `isolate_timeout`
-(`pyproject.toml`) caps each test at 30s, killing hangs and surfacing them as
-failures. The plugin disables itself in spawned children via the
-`HERMES_ISOLATE_CHILD=1` sentinel env var, so there's no fork-bomb risk.
+Each test file runs in its own freshly spawned `python -m pytest <file>`
+subprocess via `scripts/run_tests_parallel.py`. This prevents cross-file
+module-level state leakage, global setting pollution, and test ordering bugs.
 
 ### Don't write change-detector tests
 
