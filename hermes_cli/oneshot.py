@@ -53,6 +53,11 @@ def _validate_explicit_toolsets(toolsets: object = None) -> tuple[list[str] | No
     if normalized is None:
         return None, None
 
+    if "none" in normalized:
+        if len(normalized) != 1:
+            return None, "hermes -z: --toolsets none cannot be combined with other toolsets.\n"
+        return [], None
+
     try:
         from toolsets import validate_toolset
     except Exception as exc:
@@ -320,12 +325,21 @@ def _run_agent(
         explicit_base_url=explicit_base_url_from_alias,
     )
 
-    # Pull in explicit toolsets when provided; otherwise use whatever the user
-    # has enabled for "cli". sorted() gives stable ordering for config-derived
-    # sets; explicit values preserve user order.
+    # Toolset selection is a tri-state, set up by run_oneshot():
+    #   use_config_toolsets=True           no -t: the toolsets enabled for "cli"
+    #   toolsets=None, use_config=False    -t all: unrestricted (every toolset)
+    #   toolsets=[], use_config=False      -t none: zero tools
+    #   toolsets=[...]                     exactly those toolsets, in user order
+    # _normalize_toolsets() folds [] into None, so the raw value decides
+    # between "all" and "none". sorted() gives stable ordering for
+    # config-derived sets.
     toolsets_list = _normalize_toolsets(toolsets)
-    if toolsets_list is None and use_config_toolsets:
-        toolsets_list = sorted(_get_platform_tools(cfg, "cli"))
+    if toolsets_list is None:
+        if use_config_toolsets:
+            toolsets_list = sorted(_get_platform_tools(cfg, "cli"))
+        elif toolsets is not None:
+            toolsets_list = []
+        # else: explicit `-t all`. Leave None so AIAgent loads every toolset.
 
     session_db = _create_session_db_for_oneshot()
     # Read the effective fallback chain from profile config so oneshot workers
