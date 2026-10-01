@@ -1,0 +1,8 @@
+nebby.db
+nebby.db-journal
+nebby.db-shm
+nebby.db-wal
+teamwiki.db
+teamwiki.db-journal
+teamwiki.db-shm
+teamwiki.db-wal
