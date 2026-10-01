@@ -137,6 +137,9 @@ hermes -z "What's the capital of France?"
 
 # Parent scripts can cleanly capture the response:
 answer=$(hermes -z "summarize this" < /path/to/file.txt)
+
+# Disable every tool for a pure model completion, regardless of profile config:
+classification=$(hermes -t none -z "Classify this text and return JSON only.")
 ```
 
 Per-run overrides (no mutation to `~/.hermes/config.yaml`):
@@ -145,6 +148,7 @@ Per-run overrides (no mutation to `~/.hermes/config.yaml`):
 |---|---|---|
 | `-m` / `--model <model>` | `HERMES_INFERENCE_MODEL` | Override the model for this run |
 | `--provider <provider>` | _(none)_ | Override the provider for this run |
+| `-t` / `--toolsets <csv>` | _(none)_ | Override toolsets; pass `none` alone to disable every tool |
 
 ```bash
 hermes -z "…" --provider openrouter --model openai/gpt-5.5
