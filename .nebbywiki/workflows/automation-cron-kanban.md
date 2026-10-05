@@ -87,8 +87,10 @@ flowchart LR
 
 ### Isolation model
 
-- **Board** is the hard boundary — workers spawn with `HERMES_KANBAN_BOARD` pinned
-  in their environment, so a worker cannot see other boards.
+- **Board** is the default routing namespace — workers inherit `HERMES_KANBAN_BOARD`,
+  but the current tool handlers also accept an explicit `board` argument. Treat the
+  environment variable as a default, not a security boundary, unless the worker path
+  enforces the pin before invoking tools.
 - **Tenant** is a *soft* namespace within a board — one specialist worker fleet can
   serve multiple businesses via workspace-path + memory-key isolation, without
   needing separate boards.
